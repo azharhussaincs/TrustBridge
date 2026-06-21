@@ -39,3 +39,16 @@ model Message {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+model File {
+  id            String    @id @default(cuid())
+  filename      String
+  path          String
+  size          Int
+  mimeType      String
+  isEncrypted   Boolean   @default(true)
+  senderId      String
+  receiverId    String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

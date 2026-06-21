@@ -1,9 +1,12 @@
 const fileService = require('./file.service');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 class FileController {
   async uploadFile(req, res) {
     try {
-      const { receiverId } = req.body;
+      const { receiverId, isEncrypted } = req.body;
       const senderId = req.user.id;
       const senderRole = req.user.role;
       const senderTeamId = req.user.teamId;
@@ -15,8 +18,39 @@ class FileController {
         });
       }
       
+      if (!receiverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Receiver ID is required'
+        });
+      }
+      
+      // Get receiver info to check permissions
+      const receiver = await prisma.user.findUnique({
+        where: { id: receiverId }
+      });
+      
+      if (!receiver) {
+        return res.status(404).json({
+          success: false,
+          message: 'Receiver not found'
+        });
+      }
+      
       // Check if user can share files with receiver
-      // This would need to check receiver's role and team
+      const permission = fileService.canShareFile(
+        senderRole,
+        receiver.role,
+        senderTeamId,
+        receiver.teamId
+      );
+      
+      if (!permission.allowed) {
+        return res.status(403).json({
+          success: false,
+          message: permission.reason
+        });
+      }
       
       const file = await fileService.saveFile(
         {
@@ -26,7 +60,8 @@ class FileController {
           size: req.file.size
         },
         senderId,
-        receiverId
+        receiverId,
+        isEncrypted !== 'false'
       );
       
       res.json({
@@ -35,9 +70,10 @@ class FileController {
         data: file
       });
     } catch (error) {
+      console.error('Upload error:', error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message || 'Upload failed'
       });
     }
   }
@@ -53,6 +89,7 @@ class FileController {
       res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
       res.send(data);
     } catch (error) {
+      console.error('Download error:', error);
       res.status(400).json({
         success: false,
         message: error.message
@@ -69,6 +106,7 @@ class FileController {
         data: files
       });
     } catch (error) {
+      console.error('Get files error:', error);
       res.status(400).json({
         success: false,
         message: error.message
@@ -87,6 +125,23 @@ class FileController {
         message: 'File deleted successfully'
       });
     } catch (error) {
+      console.error('Delete file error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  async getSharingRules(req, res) {
+    try {
+      const rules = fileService.getSharingRules(req.user.role);
+      res.json({
+        success: true,
+        data: rules
+      });
+    } catch (error) {
+      console.error('Get sharing rules error:', error);
       res.status(400).json({
         success: false,
         message: error.message

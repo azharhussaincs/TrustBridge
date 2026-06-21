@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
+import FileSharing from '@/components/chat/FileSharing';
 
 interface User {
   id: string;
@@ -20,6 +21,7 @@ interface Message {
   read: boolean;
 }
 
+// Role-based communication permissions - SRS Compliant
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
   'ADMIN': {
     canChatWith: ['ADMIN', 'SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
@@ -30,16 +32,16 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
     description: 'Can only chat with Team Leads and Team Managers'
   },
   'TEAM_LEAD': {
-    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with other Team Leads, own Team Managers, and own Team Members'
+    canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with Super User, other Team Leads, own Team Managers, and own Team Members'
   },
   'TEAM_MANAGER': {
-    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Team Lead, other Team Managers, and Team Members'
+    canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with Super User, Team Lead, other Team Managers, and Team Members'
   },
   'TEAM_MEMBER': {
-    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Team Lead, Team Manager, and other Team Members'
+    canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with Super User, Team Lead, Team Manager, and other Team Members'
   }
 };
 
@@ -56,6 +58,7 @@ export default function ChatPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userUnreadCounts, setUserUnreadCounts] = useState<Record<string, number>>({});
+  const [showFileShare, setShowFileShare] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -68,7 +71,6 @@ export default function ChatPage() {
     
     if (userData.id) {
       fetchUsers(token, userData);
-      // Get unread count
       if (getUnreadCount) {
         getUnreadCount(userData.id);
       }
@@ -82,16 +84,12 @@ export default function ChatPage() {
     const handleNewMessage = (event: CustomEvent) => {
       const newMessage = event.detail;
       
-      // Check if message is for the current chat
       if (selectedUser && newMessage.senderId === selectedUser.id) {
         setMessages(prev => [...prev, newMessage]);
-        
-        // Mark as read if the user is viewing this chat
         if (currentUser && selectedUser) {
           markAsRead(newMessage.id, newMessage.senderId, currentUser.id);
         }
       } else {
-        // Increment unread count for the sender
         setUserUnreadCounts(prev => ({
           ...prev,
           [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1
@@ -105,12 +103,9 @@ export default function ChatPage() {
     };
   }, [selectedUser, currentUser]);
 
-  // Load messages when a user is selected
   useEffect(() => {
     if (selectedUser && currentUser) {
       loadMessages(selectedUser.id);
-      
-      // Clear unread count for this user
       setUserUnreadCounts(prev => ({
         ...prev,
         [selectedUser.id]: 0
@@ -118,7 +113,6 @@ export default function ChatPage() {
     }
   }, [selectedUser]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -176,7 +170,6 @@ export default function ChatPage() {
       if (data.success) {
         setMessages(data.data || []);
         
-        // Mark unread messages as read
         const unreadMessages = data.data.filter(
           (msg: Message) => msg.senderId === userId && !msg.read
         );
@@ -194,10 +187,8 @@ export default function ChatPage() {
     e.preventDefault();
     if (!message.trim() || !selectedUser) return;
     
-    // Send message via socket
     sendMessage(selectedUser.id, message);
     
-    // Add message to local state immediately (optimistic update)
     const newMessage: Message = {
       id: Date.now().toString(),
       content: message,
@@ -207,7 +198,6 @@ export default function ChatPage() {
       read: false
     };
     setMessages(prev => [...prev, newMessage]);
-    
     setMessage('');
   };
 
@@ -256,7 +246,6 @@ export default function ChatPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Get unread count for a user
   const getUnreadForUser = (userId: string) => {
     return userUnreadCounts[userId] || 0;
   };
@@ -271,9 +260,6 @@ export default function ChatPage() {
                 💬 TrustBridge Chat
                 {isConnected && (
                   <span style={{ fontSize: '12px', color: '#22c55e', marginLeft: '8px' }}>● Online</span>
-                )}
-                {!isConnected && (
-                  <span style={{ fontSize: '12px', color: '#ef4444', marginLeft: '8px' }}>● Offline</span>
                 )}
                 {unreadCount > 0 && (
                   <span style={{ 
@@ -342,7 +328,7 @@ export default function ChatPage() {
             🔒 <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
           </p>
           <p style={{ color: '#92400e', fontSize: '12px', marginTop: '4px' }}>
-            📨 Messages are delivered even when the recipient is offline. They'll receive them when they come online.
+            📨 Messages are delivered even when the recipient is offline
           </p>
         </div>
 
@@ -474,11 +460,31 @@ export default function ChatPage() {
                       {getRoleDisplay(selectedUser.role)}
                     </span>
                   </div>
-                  {onlineUsers.includes(selectedUser.id) ? (
-                    <span style={{ fontSize: '12px', color: '#22c55e' }}>● Online</span>
-                  ) : (
-                    <span style={{ fontSize: '12px', color: '#6b7280' }}>● Offline</span>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* FILE SHARING BUTTON - NOW VISIBLE */}
+                    <button
+                      onClick={() => setShowFileShare(!showFileShare)}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: showFileShare ? '#ef4444' : '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      {showFileShare ? '❌ Close' : '📎 File'}
+                    </button>
+                    {onlineUsers.includes(selectedUser.id) ? (
+                      <span style={{ fontSize: '12px', color: '#22c55e' }}>● Online</span>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>● Offline</span>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ flex: 1, minHeight: '300px', maxHeight: '400px', overflowY: 'auto', marginBottom: '16px', padding: '8px' }}>
@@ -527,6 +533,11 @@ export default function ChatPage() {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
+
+                {/* FILE SHARING COMPONENT - NOW VISIBLE */}
+                {showFileShare && (
+                  <FileSharing receiverId={selectedUser.id} currentUser={currentUser} />
+                )}
 
                 <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '8px' }}>
                   <input

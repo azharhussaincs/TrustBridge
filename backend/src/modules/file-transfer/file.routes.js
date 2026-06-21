@@ -9,15 +9,39 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB default
+    fileSize: 50 * 1024 * 1024 // 50MB
   }
 });
 
 // All routes require authentication
 router.use(authMiddleware.authenticate);
 
-// Upload file
-router.post('/upload', upload.single('file'), fileController.uploadFile);
+// Get sharing rules for current user
+router.get('/rules', fileController.getSharingRules);
+
+// Upload file - with error handling for multer
+router.post('/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'FILE_TOO_LARGE') {
+        return res.status(400).json({
+          success: false,
+          message: 'File too large. Maximum size is 50MB.'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    } else if (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+    next();
+  });
+}, fileController.uploadFile);
 
 // Download file
 router.get('/download/:fileId', fileController.downloadFile);
