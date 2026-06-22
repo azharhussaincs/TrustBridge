@@ -75,6 +75,7 @@ class FileService {
     try {
       const { filename, buffer, mimeType, size } = fileData;
       
+      // Generate unique filename with timestamp
       const uniqueFilename = `${Date.now()}-${filename}`;
       const filePath = path.join(UPLOAD_DIR, uniqueFilename);
       
@@ -82,6 +83,7 @@ class FileService {
       let iv = null;
       let authTag = null;
       
+      // Encrypt the file if required
       if (isEncrypted) {
         const result = encryptionService.encryptFile(buffer);
         savedBuffer = result.encryptedData;
@@ -89,13 +91,16 @@ class FileService {
         authTag = result.authTag;
       }
       
+      // Save encrypted file to disk
       await fs.writeFile(filePath, savedBuffer);
       
+      // Save IV and auth tag if encrypted
       if (iv && authTag) {
         await fs.writeFile(`${filePath}.iv`, iv);
         await fs.writeFile(`${filePath}.tag`, authTag);
       }
       
+      // Save file metadata to database
       const file = await prisma.file.create({
         data: {
           filename,
@@ -129,14 +134,17 @@ class FileService {
         throw new Error('File not found');
       }
       
+      // Check if user is authorized to access this file
       if (file.senderId !== userId && file.receiverId !== userId) {
         throw new Error('Unauthorized access');
       }
       
+      // Read encrypted file
       const encryptedData = await fs.readFile(file.path);
       
       let decryptedData = encryptedData;
       
+      // Decrypt if file was encrypted
       if (file.isEncrypted) {
         const iv = await fs.readFile(`${file.path}.iv`);
         const authTag = await fs.readFile(`${file.path}.tag`);
@@ -184,14 +192,17 @@ class FileService {
         throw new Error('File not found');
       }
       
+      // Check if user is authorized to delete this file
       if (file.senderId !== userId && file.receiverId !== userId) {
         throw new Error('Unauthorized access');
       }
       
+      // Delete physical files
       await fs.unlink(file.path).catch(() => {});
       await fs.unlink(`${file.path}.iv`).catch(() => {});
       await fs.unlink(`${file.path}.tag`).catch(() => {});
       
+      // Delete from database
       await prisma.file.delete({
         where: { id: fileId }
       });
@@ -210,7 +221,7 @@ class FileService {
   formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }

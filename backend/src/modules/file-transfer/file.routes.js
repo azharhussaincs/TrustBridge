@@ -4,12 +4,13 @@ const multer = require('multer');
 const fileController = require('./file.controller');
 const authMiddleware = require('../auth/auth.middleware');
 
-// Configure multer for memory storage
+// Configure multer for memory storage - No size limit, all file types
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
+  // No file filter - accept all file types
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB
+    fileSize: 50 * 1024 * 1024 // 50MB default, can be changed
   }
 });
 

@@ -9,6 +9,8 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState({});
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -26,6 +28,9 @@ export function SocketProvider({ children }) {
       console.log('✅ Socket connected');
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
+      
+      // Get unread count on connect
+      newSocket.emit('get-unread-count', user.id);
     });
 
     newSocket.on('disconnect', () => {
@@ -48,11 +53,50 @@ export function SocketProvider({ children }) {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
+    // Handle new messages
     newSocket.on('new-message', (message) => {
-      console.log('📩 New message:', message);
+      console.log('📩 New message received:', message);
+      
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // Update unread count
+      if (message.receiverId === user.id) {
+        setUnreadCount(prev => prev + 1);
+        
+        // Track unread per sender
+        setUnreadMessages(prev => ({
+          ...prev,
+          [message.senderId]: (prev[message.senderId] || 0) + 1
+        }));
+      }
+      
+      // Trigger event for chat page
+      window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+    });
+
+    // Handle message delivered confirmation
+    newSocket.on('message-delivered', ({ messageId, receiverId }) => {
+      console.log('✅ Message delivered:', messageId, 'to:', receiverId);
+    });
+
+    // Handle message saved for offline
+    newSocket.on('message-saved', ({ messageId, receiverId, status }) => {
+      console.log('💾 Message saved for offline delivery:', messageId);
+    });
+
+    // Handle unread count
+    newSocket.on('unread-count', ({ count }) => {
+      setUnreadCount(count);
     });
 
     setSocket(newSocket);
+
+    // Get initial unread count
+    setTimeout(() => {
+      if (newSocket && user.id) {
+        newSocket.emit('get-unread-count', user.id);
+      }
+    }, 1000);
 
     return () => {
       newSocket.disconnect();
@@ -80,13 +124,46 @@ export function SocketProvider({ children }) {
     });
   };
 
+  const markAsRead = (messageId, senderId, receiverId) => {
+    if (!socket) return;
+    socket.emit('mark-read', {
+      messageId,
+      senderId,
+      receiverId
+    });
+    
+    // Clear unread for this sender
+    setUnreadMessages(prev => ({
+      ...prev,
+      [senderId]: 0
+    }));
+  };
+
+  const getUnreadCount = (userId) => {
+    if (!socket) return;
+    socket.emit('get-unread-count', userId);
+  };
+
+  const clearUnreadForUser = (userId) => {
+    setUnreadMessages(prev => ({
+      ...prev,
+      [userId]: 0
+    }));
+  };
+
   return (
     <SocketContext.Provider value={{
       socket,
       isConnected,
       onlineUsers,
+      unreadCount,
+      unreadMessages,
       sendMessage,
-      sendTyping
+      sendTyping,
+      markAsRead,
+      getUnreadCount,
+      clearUnreadForUser,
+      setUnreadCount
     }}>
       {children}
     </SocketContext.Provider>

@@ -47,7 +47,7 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
 
 export default function ChatPage() {
   const router = useRouter();
-  const { onlineUsers, sendMessage, isConnected, unreadCount, markAsRead, getUnreadCount } = useSocket();
+  const { onlineUsers, sendMessage, isConnected, unreadCount, unreadMessages, markAsRead, getUnreadCount, clearUnreadForUser } = useSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -57,7 +57,6 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [userUnreadCounts, setUserUnreadCounts] = useState<Record<string, number>>({});
   const [showFileShare, setShowFileShare] = useState(false);
 
   useEffect(() => {
@@ -88,12 +87,8 @@ export default function ChatPage() {
         setMessages(prev => [...prev, newMessage]);
         if (currentUser && selectedUser) {
           markAsRead(newMessage.id, newMessage.senderId, currentUser.id);
+          clearUnreadForUser(selectedUser.id);
         }
-      } else {
-        setUserUnreadCounts(prev => ({
-          ...prev,
-          [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1
-        }));
       }
     };
 
@@ -106,10 +101,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (selectedUser && currentUser) {
       loadMessages(selectedUser.id);
-      setUserUnreadCounts(prev => ({
-        ...prev,
-        [selectedUser.id]: 0
-      }));
+      clearUnreadForUser(selectedUser.id);
     }
   }, [selectedUser]);
 
@@ -126,7 +118,7 @@ export default function ChatPage() {
       setIsRefreshing(true);
       setError('');
       
-      const response = await fetch('http://localhost:5000/api/users', {
+      const response = await fetch('http://192.168.18.139:5000/api/users', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -160,7 +152,7 @@ export default function ChatPage() {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`http://localhost:5000/api/messages?userId=${userId}`, {
+      const response = await fetch(`http://192.168.18.139:5000/api/messages?userId=${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -177,6 +169,7 @@ export default function ChatPage() {
         for (const msg of unreadMessages) {
           markAsRead(msg.id, userId, currentUser.id);
         }
+        clearUnreadForUser(userId);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -247,7 +240,7 @@ export default function ChatPage() {
   };
 
   const getUnreadForUser = (userId: string) => {
-    return userUnreadCounts[userId] || 0;
+    return unreadMessages[userId] || 0;
   };
 
   return (
@@ -377,7 +370,10 @@ export default function ChatPage() {
                 filteredUsers.map((u) => (
                   <div
                     key={u.id}
-                    onClick={() => setSelectedUser(u)}
+                    onClick={() => {
+                      setSelectedUser(u);
+                      clearUnreadForUser(u.id);
+                    }}
                     style={{
                       padding: '12px',
                       borderRadius: '8px',
@@ -408,13 +404,14 @@ export default function ChatPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {getUnreadForUser(u.id) > 0 && (
                         <span style={{ 
-                          fontSize: '10px', 
+                          fontSize: '11px', 
                           color: 'white', 
-                          backgroundColor: '#ef4444',
+                          backgroundColor: '#22c55e',
                           padding: '2px 6px',
                           borderRadius: '10px',
                           minWidth: '18px',
-                          textAlign: 'center'
+                          textAlign: 'center',
+                          fontWeight: 'bold'
                         }}>
                           {getUnreadForUser(u.id)}
                         </span>
@@ -461,7 +458,6 @@ export default function ChatPage() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {/* FILE SHARING BUTTON - NOW VISIBLE */}
                     <button
                       onClick={() => setShowFileShare(!showFileShare)}
                       style={{
@@ -483,6 +479,18 @@ export default function ChatPage() {
                       <span style={{ fontSize: '12px', color: '#22c55e' }}>● Online</span>
                     ) : (
                       <span style={{ fontSize: '12px', color: '#6b7280' }}>● Offline</span>
+                    )}
+                    {getUnreadForUser(selectedUser.id) > 0 && (
+                      <span style={{ 
+                        fontSize: '11px', 
+                        color: 'white', 
+                        backgroundColor: '#22c55e',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontWeight: 'bold'
+                      }}>
+                        {getUnreadForUser(selectedUser.id)} new
+                      </span>
                     )}
                   </div>
                 </div>
@@ -534,7 +542,6 @@ export default function ChatPage() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* FILE SHARING COMPONENT - NOW VISIBLE */}
                 {showFileShare && (
                   <FileSharing receiverId={selectedUser.id} currentUser={currentUser} />
                 )}

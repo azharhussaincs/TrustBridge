@@ -14,11 +14,14 @@ const fileRoutes = require('./modules/file-transfer/file.routes');
 
 const app = express();
 
-// Middleware
+// CORS configuration - Allow all origins (for development)
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
