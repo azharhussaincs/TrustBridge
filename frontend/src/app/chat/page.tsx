@@ -10,6 +10,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  teamId: string | null;
 }
 
 interface Message {
@@ -42,7 +43,7 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
   },
   'TEAM_MEMBER': {
     canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Super User, Team Lead, Team Manager, and other Team Members'
+    description: 'Can chat with Super User, own Team Lead, own Team Manager, and own Team Members'
   }
 };
 
@@ -51,6 +52,7 @@ export default function ChatPage() {
   const { onlineUsers, sendMessage, isConnected, unreadCount, unreadMessages, markAsRead, getUnreadCount, clearUnreadForUser } = useSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -129,11 +131,52 @@ export default function ChatPage() {
       const data = await response.json();
       
       if (data.success && data.data) {
+        setAllUsers(data.data);
+        
         const allowedRoles = COMMUNICATION_RULES[userData.role]?.canChatWith || [];
         
+        // Filter users based on communication permissions
         const filtered = data.data.filter((u: User) => {
+          // Exclude current user
           if (u.id === userData.id) return false;
-          return allowedRoles.includes(u.role);
+          
+          // Check if user's role is allowed
+          if (!allowedRoles.includes(u.role)) return false;
+          
+          // For Team Members: Only allow same team (except Super User)
+          if (userData.role === 'TEAM_MEMBER') {
+            // Super User is allowed for everyone
+            if (u.role === 'SUPER_USER') return true;
+            // Team Lead, Team Manager, Team Member must be from same team
+            if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') {
+              return u.teamId === userData.teamId;
+            }
+          }
+          
+          // For Team Manager: Allow Super User, Team Lead, other Managers, Team Members
+          if (userData.role === 'TEAM_MANAGER') {
+            if (u.role === 'SUPER_USER') return true;
+            if (u.role === 'TEAM_LEAD') return u.teamId === userData.teamId;
+            if (u.role === 'TEAM_MANAGER') return true;
+            if (u.role === 'TEAM_MEMBER') return u.teamId === userData.teamId;
+          }
+          
+          // For Team Lead: Allow Super User, other Team Leads, own Team Managers, own Team Members
+          if (userData.role === 'TEAM_LEAD') {
+            if (u.role === 'SUPER_USER') return true;
+            if (u.role === 'TEAM_LEAD') return true;
+            if (u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') {
+              return u.teamId === userData.teamId;
+            }
+          }
+          
+          // For Super User: Allow all Team Leads and Team Managers
+          if (userData.role === 'SUPER_USER') {
+            if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER') return true;
+            return false;
+          }
+          
+          return true;
         });
         
         setFilteredUsers(filtered);
@@ -254,6 +297,11 @@ export default function ChatPage() {
     return msg.fileId !== null && msg.fileId !== undefined && msg.fileId !== '';
   };
 
+  // Check if a user is from the same team
+  const isSameTeam = (user: User) => {
+    return currentUser?.teamId && user.teamId === currentUser.teamId;
+  };
+
   if (isLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -369,6 +417,11 @@ export default function ChatPage() {
         }}>
           <p style={{ color: '#92400e', fontSize: '14px' }}>
             🔒 <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
+            {currentUser?.role === 'TEAM_MEMBER' && currentUser?.teamId && (
+              <span style={{ display: 'block', fontSize: '12px', marginTop: '4px' }}>
+                👥 You can chat with your Team Lead, Team Manager, and other Team Members from your team.
+              </span>
+            )}
           </p>
           <p style={{ color: '#92400e', fontSize: '12px', marginTop: '4px' }}>
             📨 Messages are delivered even when the recipient is offline
@@ -416,67 +469,84 @@ export default function ChatPage() {
                   <p style={{ color: '#6b7280', fontSize: '14px' }}>No users available</p>
                 </div>
               ) : (
-                filteredUsers.map((u) => (
-                  <div
-                    key={u.id}
-                    onClick={() => {
-                      setSelectedUser(u);
-                      clearUnreadForUser(u.id);
-                    }}
-                    style={{
-                      padding: '12px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      backgroundColor: selectedUser?.id === u.id ? '#eff6ff' : 'transparent',
-                      border: selectedUser?.id === u.id ? '1px solid #bfdbfe' : '1px solid transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: '500', color: '#111827' }}>{u.name}</div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{u.email}</div>
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: '#6b7280', 
-                        backgroundColor: '#e5e7eb', 
-                        padding: '2px 6px', 
-                        borderRadius: '4px', 
-                        display: 'inline-block', 
-                        marginTop: '2px' 
-                      }}>
-                        {getRoleDisplay(u.role)}
+                filteredUsers.map((u) => {
+                  const isSameTeamUser = isSameTeam(u);
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        setSelectedUser(u);
+                        clearUnreadForUser(u.id);
+                      }}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: selectedUser?.id === u.id ? '#eff6ff' : 'transparent',
+                        border: selectedUser?.id === u.id ? '1px solid #bfdbfe' : '1px solid transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: '500', color: '#111827' }}>
+                          {u.name}
+                          {isSameTeamUser && currentUser?.role === 'TEAM_MEMBER' && (
+                            <span style={{ 
+                              marginLeft: '6px', 
+                              fontSize: '9px', 
+                              color: '#10b981',
+                              backgroundColor: '#d1fae5',
+                              padding: '1px 6px',
+                              borderRadius: '4px'
+                            }}>
+                              Same Team
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>{u.email}</div>
+                        <div style={{ 
+                          fontSize: '10px', 
+                          color: '#6b7280', 
+                          backgroundColor: '#e5e7eb', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px', 
+                          display: 'inline-block', 
+                          marginTop: '2px' 
+                        }}>
+                          {getRoleDisplay(u.role)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {getUnreadForUser(u.id) > 0 && (
+                          <span style={{ 
+                            fontSize: '11px', 
+                            color: 'white', 
+                            backgroundColor: '#22c55e',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            minWidth: '18px',
+                            textAlign: 'center',
+                            fontWeight: 'bold'
+                          }}>
+                            {getUnreadForUser(u.id)}
+                          </span>
+                        )}
+                        {onlineUsers.includes(u.id) && (
+                          <span style={{ 
+                            width: '10px', 
+                            height: '10px', 
+                            borderRadius: '50%', 
+                            backgroundColor: '#22c55e',
+                            display: 'inline-block'
+                          }}></span>
+                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {getUnreadForUser(u.id) > 0 && (
-                        <span style={{ 
-                          fontSize: '11px', 
-                          color: 'white', 
-                          backgroundColor: '#22c55e',
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          minWidth: '18px',
-                          textAlign: 'center',
-                          fontWeight: 'bold'
-                        }}>
-                          {getUnreadForUser(u.id)}
-                        </span>
-                      )}
-                      {onlineUsers.includes(u.id) && (
-                        <span style={{ 
-                          width: '10px', 
-                          height: '10px', 
-                          borderRadius: '50%', 
-                          backgroundColor: '#22c55e',
-                          display: 'inline-block'
-                        }}></span>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -504,6 +574,18 @@ export default function ChatPage() {
                     }}>
                       {getRoleDisplay(selectedUser.role)}
                     </span>
+                    {currentUser?.role === 'TEAM_MEMBER' && isSameTeam(selectedUser) && (
+                      <span style={{ 
+                        marginLeft: '6px', 
+                        fontSize: '9px', 
+                        color: '#10b981',
+                        backgroundColor: '#d1fae5',
+                        padding: '1px 6px',
+                        borderRadius: '4px'
+                      }}>
+                        Same Team
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
