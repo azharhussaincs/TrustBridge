@@ -16,32 +16,51 @@ const ROLE_HIERARCHY = {
   [ROLES.TEAM_MEMBER]: 1
 };
 
-// Communication Permissions
+// CHAT Communication Permissions (who can chat with whom)
 const COMMUNICATION_RULES = {
   [ROLES.SUPER_USER]: {
     canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER],
-    canAddUsers: false,
     hasAdminPanel: false
   },
   [ROLES.ADMIN]: {
     canCommunicateWith: [ROLES.ADMIN, ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
-    canAddUsers: [ROLES.SUPER_USER, ROLES.TEAM_LEAD],
     hasAdminPanel: true
   },
   [ROLES.TEAM_LEAD]: {
-    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
-    canAddUsers: [ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
+    canCommunicateWith: [ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
   },
   [ROLES.TEAM_MANAGER]: {
-    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MEMBER],
-    canAddUsers: [ROLES.TEAM_MEMBER],
+    canCommunicateWith: [ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
   },
   [ROLES.TEAM_MEMBER]: {
-    canCommunicateWith: [ROLES.TEAM_MANAGER],
-    canAddUsers: [],
+    canCommunicateWith: [ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
+  }
+};
+
+// USER CREATION Permissions (who can create whom)
+const CREATION_RULES = {
+  [ROLES.ADMIN]: {
+    canCreate: [ROLES.SUPER_USER, ROLES.TEAM_LEAD],
+    description: 'Admin can only create Super User and Team Lead'
+  },
+  [ROLES.TEAM_LEAD]: {
+    canCreate: [ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
+    description: 'Team Lead can only create Team Managers and Team Members'
+  },
+  [ROLES.SUPER_USER]: {
+    canCreate: [],
+    description: 'Super User cannot create any users'
+  },
+  [ROLES.TEAM_MANAGER]: {
+    canCreate: [],
+    description: 'Team Manager cannot create any users'
+  },
+  [ROLES.TEAM_MEMBER]: {
+    canCreate: [],
+    description: 'Team Member cannot create any users'
   }
 };
 
@@ -57,5 +76,6 @@ module.exports = {
   ROLES,
   ROLE_HIERARCHY,
   COMMUNICATION_RULES,
+  CREATION_RULES,
   ENCRYPTION
 };

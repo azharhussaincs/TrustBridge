@@ -17,4 +17,7 @@ router.post('/', authMiddleware.authorize(['ADMIN', 'TEAM_LEAD']), userControlle
 router.put('/:id', authMiddleware.authorize(['ADMIN', 'TEAM_LEAD']), userController.updateUser);
 router.delete('/:id', authMiddleware.authorize(['ADMIN', 'TEAM_LEAD']), userController.deleteUser);
 
+// Admin-only: Reset user password
+router.post('/:id/reset-password', authMiddleware.authorize(['ADMIN']), userController.resetPassword);
+
 module.exports = router;

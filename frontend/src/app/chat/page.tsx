@@ -22,6 +22,7 @@ interface Message {
   read: boolean;
 }
 
+// Role-based communication permissions - SRS Compliant
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
   'ADMIN': {
     canChatWith: ['ADMIN', 'SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],

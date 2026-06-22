@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,13 +31,16 @@ export default function LoginPage() {
       if (data.success) {
         localStorage.setItem('auth_token', data.data.token);
         localStorage.setItem('user', JSON.stringify(data.data.user));
+        toast.success('✅ Login successful!');
         router.push('/dashboard');
       } else {
         setError(data.message || 'Login failed');
+        toast.error('❌ ' + (data.message || 'Login failed'));
       }
     } catch (err) {
       console.error('Login error:', err);
       setError('Connection error. Please try again.');
+      toast.error('❌ Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -49,6 +54,8 @@ export default function LoginPage() {
       justifyContent: 'center',
       backgroundColor: '#f3f4f6'
     }}>
+      <Toaster position="top-right" />
+      
       <div style={{
         maxWidth: '400px',
         width: '100%',
@@ -114,22 +121,42 @@ export default function LoginPage() {
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{
-                marginTop: '4px',
-                display: 'block',
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '16px'
-              }}
-              placeholder="admin123"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{
+                  marginTop: '4px',
+                  display: 'block',
+                  width: '100%',
+                  padding: '8px 12px',
+                  paddingRight: '40px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '16px'
+                }}
+                placeholder="admin123"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  padding: '4px'
+                }}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
           </div>
 
           <button

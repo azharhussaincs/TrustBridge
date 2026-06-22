@@ -75,6 +75,33 @@ class UserController {
       res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  // NEW: Reset user password (Admin only)
+  async resetPassword(req, res) {
+    try {
+      const { id } = req.params;
+      const { newPassword } = req.body;
+      
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must be at least 6 characters'
+        });
+      }
+      
+      const result = await userService.resetPassword(id, newPassword);
+      res.json({
+        success: true,
+        message: 'Password reset successfully',
+        data: result
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
 }
 
 module.exports = new UserController();
