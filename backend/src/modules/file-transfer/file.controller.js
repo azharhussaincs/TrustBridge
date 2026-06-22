@@ -25,7 +25,6 @@ class FileController {
         });
       }
       
-      // Get receiver info to check permissions
       const receiver = await prisma.user.findUnique({
         where: { id: receiverId }
       });
@@ -37,7 +36,6 @@ class FileController {
         });
       }
       
-      // Check if user can share files with receiver
       const permission = fileService.canShareFile(
         senderRole,
         receiver.role,
@@ -83,11 +81,13 @@ class FileController {
       const { fileId } = req.params;
       const userId = req.user.id;
       
-      const { file, data } = await fileService.getFile(fileId, userId);
+      const result = await fileService.getFile(fileId, userId);
       
-      res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
-      res.send(data);
+      // Set headers for download
+      res.setHeader('Content-Type', result.file.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.file.filename}"`);
+      res.setHeader('Content-Length', result.file.size);
+      res.send(result.data);
     } catch (error) {
       console.error('Download error:', error);
       res.status(400).json({

@@ -28,8 +28,6 @@ export function SocketProvider({ children }) {
       console.log('✅ Socket connected');
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
-      
-      // Get unread count on connect
       newSocket.emit('get-unread-count', user.id);
     });
 
@@ -53,45 +51,36 @@ export function SocketProvider({ children }) {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
-    // Handle new messages
     newSocket.on('new-message', (message) => {
       console.log('📩 New message received:', message);
       
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       
-      // Update unread count
       if (message.receiverId === user.id) {
         setUnreadCount(prev => prev + 1);
-        
-        // Track unread per sender
         setUnreadMessages(prev => ({
           ...prev,
           [message.senderId]: (prev[message.senderId] || 0) + 1
         }));
       }
       
-      // Trigger event for chat page
       window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
     });
 
-    // Handle message delivered confirmation
     newSocket.on('message-delivered', ({ messageId, receiverId }) => {
       console.log('✅ Message delivered:', messageId, 'to:', receiverId);
     });
 
-    // Handle message saved for offline
     newSocket.on('message-saved', ({ messageId, receiverId, status }) => {
       console.log('💾 Message saved for offline delivery:', messageId);
     });
 
-    // Handle unread count
     newSocket.on('unread-count', ({ count }) => {
       setUnreadCount(count);
     });
 
     setSocket(newSocket);
 
-    // Get initial unread count
     setTimeout(() => {
       if (newSocket && user.id) {
         newSocket.emit('get-unread-count', user.id);
@@ -103,14 +92,15 @@ export function SocketProvider({ children }) {
     };
   }, []);
 
-  const sendMessage = (receiverId, content, isEncrypted = true) => {
+  const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     if (!socket) return;
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     socket.emit('private-message', {
       senderId: user.id,
       receiverId,
       content,
-      isEncrypted
+      isEncrypted,
+      fileId  // Pass file ID if available
     });
   };
 
@@ -131,8 +121,6 @@ export function SocketProvider({ children }) {
       senderId,
       receiverId
     });
-    
-    // Clear unread for this sender
     setUnreadMessages(prev => ({
       ...prev,
       [senderId]: 0

@@ -17,11 +17,11 @@ interface Message {
   content: string;
   senderId: string;
   receiverId: string;
+  fileId: string | null;
   createdAt: string;
   read: boolean;
 }
 
-// Role-based communication permissions - SRS Compliant
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
   'ADMIN': {
     canChatWith: ['ADMIN', 'SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
@@ -78,7 +78,6 @@ export default function ChatPage() {
     setIsLoading(false);
   }, []);
 
-  // Listen for new messages via custom event
   useEffect(() => {
     const handleNewMessage = (event: CustomEvent) => {
       const newMessage = event.detail;
@@ -187,6 +186,7 @@ export default function ChatPage() {
       content: message,
       senderId: currentUser.id,
       receiverId: selectedUser.id,
+      fileId: null,
       createdAt: new Date().toISOString(),
       read: false
     };
@@ -202,6 +202,55 @@ export default function ChatPage() {
         loadMessages(selectedUser.id);
       }
     }
+  };
+
+  const handleDownloadFile = async (fileId: string, filename: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        alert('Please login again');
+        return;
+      }
+
+      const response = await fetch(`http://192.168.18.139:5000/api/files/download/${fileId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      alert(`Failed to download file: ${error.message}`);
+    }
+  };
+
+  const extractFileName = (content: string) => {
+    const match = content.match(/📎 (.*?) \(/);
+    return match ? match[1] : 'file';
+  };
+
+  const extractFileSize = (content: string) => {
+    const match = content.match(/\((.*?)\)/);
+    return match ? match[1] : '';
+  };
+
+  const isFileMessage = (msg: Message) => {
+    return msg.fileId !== null && msg.fileId !== undefined && msg.fileId !== '';
   };
 
   if (isLoading) {
@@ -338,7 +387,6 @@ export default function ChatPage() {
         )}
         
         <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)', minHeight: '500px' }}>
-          {/* Users List */}
           <div style={{ borderRight: '1px solid #e5e7eb', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ fontWeight: '600', color: '#111827' }}>
@@ -432,7 +480,6 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Chat Window */}
           <div style={{ display: 'flex', flexDirection: 'column', padding: '16px' }}>
             {selectedUser ? (
               <>
@@ -503,6 +550,8 @@ export default function ChatPage() {
                   ) : (
                     messages.map((msg) => {
                       const isOwn = msg.senderId === currentUser?.id;
+                      const isFile = isFileMessage(msg);
+                      
                       return (
                         <div
                           key={msg.id}
@@ -522,7 +571,29 @@ export default function ChatPage() {
                               wordWrap: 'break-word'
                             }}
                           >
-                            <p style={{ margin: 0, fontSize: '14px' }}>{msg.content}</p>
+                            {isFile ? (
+                              <div>
+                                <div style={{ fontSize: '14px' }}>📎 {extractFileName(msg.content)}</div>
+                                <div style={{ fontSize: '10px', opacity: 0.7 }}>{extractFileSize(msg.content)}</div>
+                                <button
+                                  onClick={() => handleDownloadFile(msg.fileId!, extractFileName(msg.content))}
+                                  style={{
+                                    marginTop: '4px',
+                                    padding: '2px 10px',
+                                    backgroundColor: isOwn ? '#3b82f6' : '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px'
+                                  }}
+                                >
+                                  ⬇️ Download
+                                </button>
+                              </div>
+                            ) : (
+                              <p style={{ margin: 0, fontSize: '14px' }}>{msg.content}</p>
+                            )}
                             <p style={{ 
                               margin: 0, 
                               fontSize: '10px', 

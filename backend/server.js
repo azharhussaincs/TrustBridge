@@ -28,12 +28,11 @@ const connectedUsers = new Map();
 io.on('connection', (socket) => {
   console.log(`🔌 New client connected: ${socket.id}`);
 
-  // Register user and deliver offline messages
+  // Register user
   socket.on('register-user', async (userId) => {
     if (userId) {
       connectedUsers.set(userId, socket.id);
       
-      // Update user online status
       await prisma.user.update({
         where: { id: userId },
         data: { isOnline: true, lastSeen: new Date() }
@@ -42,11 +41,9 @@ io.on('connection', (socket) => {
       console.log(`👤 User ${userId} is online`);
       console.log(`📊 Total connected users: ${connectedUsers.size}`);
       
-      // Broadcast online status
       io.emit('user-online', { userId, online: true });
       
-      // === DELIVER OFFLINE MESSAGES ===
-      // Get all unread messages for this user
+      // Deliver offline messages
       const unreadMessages = await prisma.message.findMany({
         where: {
           receiverId: userId,
@@ -57,30 +54,13 @@ io.on('connection', (socket) => {
       
       if (unreadMessages.length > 0) {
         console.log(`📨 Delivering ${unreadMessages.length} offline messages to user ${userId}`);
-        
-        // Send each unread message to the user
         for (const msg of unreadMessages) {
           socket.emit('new-message', msg);
-          
-          // Mark as read since we're delivering it
           await prisma.message.update({
             where: { id: msg.id },
             data: { read: true, readAt: new Date() }
           });
         }
-        
-        // Notify sender that messages were delivered
-        for (const msg of unreadMessages) {
-          const senderSocketId = connectedUsers.get(msg.senderId);
-          if (senderSocketId) {
-            io.to(senderSocketId).emit('message-delivered', { 
-              messageId: msg.id, 
-              receiverId: userId 
-            });
-          }
-        }
-        
-        console.log(`✅ Delivered ${unreadMessages.length} offline messages`);
       }
     }
   });
@@ -88,9 +68,9 @@ io.on('connection', (socket) => {
   // Handle private messages
   socket.on('private-message', async (data) => {
     try {
-      const { senderId, receiverId, content, isEncrypted } = data;
+      const { senderId, receiverId, content, isEncrypted, fileId } = data;
       
-      console.log(`📩 Message from ${senderId} to ${receiverId}: ${content}`);
+      console.log(`📩 Message from ${senderId} to ${receiverId}: ${content.substring(0, 50)}`);
       
       // Save message to database
       const message = await prisma.message.create({
@@ -99,7 +79,7 @@ io.on('connection', (socket) => {
           receiverId,
           content,
           isEncrypted: isEncrypted || true,
-          read: false
+          fileId: fileId || null  // Store file ID if present
         }
       });
       
@@ -107,17 +87,13 @@ io.on('connection', (socket) => {
       const receiverSocketId = connectedUsers.get(receiverId);
       
       if (receiverSocketId) {
-        // Receiver is online - deliver immediately
         io.to(receiverSocketId).emit('new-message', message);
         console.log(`✅ Message delivered to online user ${receiverId}`);
-        
-        // Mark as read
         await prisma.message.update({
           where: { id: message.id },
           data: { read: true, readAt: new Date() }
         });
       } else {
-        // Receiver is offline - message saved for later delivery
         console.log(`💾 Message saved for offline user ${receiverId}`);
         socket.emit('message-saved', { 
           messageId: message.id, 
@@ -126,7 +102,6 @@ io.on('connection', (socket) => {
         });
       }
       
-      // Send confirmation to sender
       socket.emit('message-sent', message);
       
     } catch (error) {

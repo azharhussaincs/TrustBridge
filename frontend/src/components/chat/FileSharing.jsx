@@ -15,7 +15,6 @@ export default function FileSharing({ receiverId, currentUser }) {
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
-      // Check each file for size (max 50MB per file)
       const oversizedFiles = files.filter(file => file.size > 50 * 1024 * 1024);
       if (oversizedFiles.length > 0) {
         setError(`Some files exceed 50MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
@@ -90,13 +89,23 @@ export default function FileSharing({ receiverId, currentUser }) {
           xhr.onerror = () => reject(new Error('Network error'));
         });
 
-        xhr.open('POST', 'http://localhost:5000/api/files/upload');
+        xhr.open('POST', 'http://192.168.18.139:5000/api/files/upload');
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
 
-        await uploadPromise;
-        uploadedCount++;
-        sendMessage(receiverId, `📎 File shared: ${file.name} (${formatFileSize(file.size)})`);
+        const response = await uploadPromise;
+        
+        if (response.success) {
+          uploadedCount++;
+          // Send message with file ID
+          const fileId = response.data.id;
+          const fileName = file.name;
+          const fileSize = formatFileSize(file.size);
+          sendMessage(receiverId, `📎 ${fileName} (${fileSize})`, true, fileId);
+        } else {
+          failedCount++;
+          setError(`Failed to upload: ${file.name}`);
+        }
 
       } catch (err) {
         console.error('Upload error for file:', file.name, err);
@@ -132,28 +141,15 @@ export default function FileSharing({ receiverId, currentUser }) {
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const icons = {
-      // Documents
       'pdf': '📄', 'doc': '📝', 'docx': '📝',
       'xls': '📊', 'xlsx': '📊',
       'ppt': '📽️', 'pptx': '📽️',
-      'txt': '📃', 'rtf': '📃',
-      // Images
-      'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 
-      'svg': '🖼️', 'bmp': '🖼️', 'ico': '🖼️', 'webp': '🖼️',
-      // Videos
+      'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️',
       'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬',
-      'wmv': '🎬', 'flv': '🎬', 'webm': '🎬', 'm4v': '🎬',
-      // Audio
-      'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵',
-      'ogg': '🎵', 'wma': '🎵', 'm4a': '🎵',
-      // Archives
+      'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
       'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
-      // Code
-      'js': '💻', 'py': '💻', 'html': '💻', 'css': '💻', 'json': '💻',
-      'java': '💻', 'cpp': '💻', 'c': '💻', 'php': '💻', 'rb': '💻',
-      // Executables
-      'exe': '⚙️', 'msi': '⚙️', 'dmg': '⚙️', 'pkg': '⚙️',
-      // Other
+      'txt': '📃', 'js': '💻', 'py': '💻', 'html': '💻', 'css': '💻', 'json': '💻',
+      'exe': '⚙️', 'msi': '⚙️',
       'one': '📓', 'onenote': '📓',
       'dwg': '📐', 'dxf': '📐',
       'psd': '🎨', 'ai': '🎨',
@@ -163,11 +159,6 @@ export default function FileSharing({ receiverId, currentUser }) {
 
   const getTotalSize = () => {
     return selectedFiles.reduce((total, file) => total + file.size, 0);
-  };
-
-  const isImage = (filename) => {
-    const ext = filename.split('.').pop()?.toLowerCase() || '';
-    return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp', 'ico', 'webp'].includes(ext);
   };
 
   return (

@@ -18,6 +18,10 @@ model User {
   lastSeen      DateTime  @default(now())
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
+  // File relations
+  sentFiles     File[]    @relation("SentFiles")
+  receivedFiles File[]    @relation("ReceivedFiles")
 }
 
 model Team {
@@ -34,6 +38,7 @@ model Message {
   isEncrypted   Boolean   @default(true)
   senderId      String
   receiverId    String
+  fileId        String?
   read          Boolean   @default(false)
   readAt        DateTime?
   createdAt     DateTime  @default(now())
@@ -51,4 +56,8 @@ model File {
   receiverId    String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  sender        User      @relation("SentFiles", fields: [senderId], references: [id])
+  receiver      User      @relation("ReceivedFiles", fields: [receiverId], references: [id])
 }
