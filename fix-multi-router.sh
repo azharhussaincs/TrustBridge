@@ -1,3 +1,14 @@
+#!/bin/bash
+
+echo "🔧 FIXING TrustBridge for Multi-Router Environment"
+echo "===================================================="
+
+# Step 1: Update Backend
+echo "📡 Updating Backend..."
+cd backend
+
+# Update server.js to listen on all interfaces
+cat > server.js << 'ENDSSERVER'
 const app = require('./src/app');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -163,3 +174,80 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 
 module.exports = { server, io, connectedUsers };
+ENDSSERVER
+
+# Update app.js with CORS
+cat > src/app.js << 'ENDSCORS'
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const authRoutes = require('./modules/auth/auth.routes');
+const userRoutes = require('./modules/user/user.routes');
+const cryptoRoutes = require('./modules/crypto/crypto.routes');
+const messageRoutes = require('./modules/messaging/message.routes');
+const fileRoutes = require('./modules/file-transfer/file.routes');
+
+const app = express();
+
+app.use(cors({
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  console.log(`📡 [${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
+  next();
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: '✅ Server is running',
+    timestamp: new Date().toISOString(),
+    encryption: 'AES-GCM',
+    security: 'Zero Trust Architecture',
+    version: '1.0.0'
+  });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/crypto', cryptoRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/files', fileRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Route not found',
+    path: req.path
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.message);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error'
+  });
+});
+
+module.exports = app;
+ENDSCORS
+
+echo "✅ Backend updated"
+
+# Step 2: Get Server IP
+SERVER_IP=$(ip addr show | grep "inet " | grep -v 127.0.0.1 | grep -v docker | head -1 | awk '{print $2}' | cut -d/ -f1)
+
+# Step 3: Update Frontend
+cd ../frontend
+
+cat > .env.local << EOF
+NEXT_PUBLIC_API_URL=http://$SERVER_IP:5000/api
+NEXT_PUBLIC_WEBSOCKET_URL=http://$SERVER_IP:5000

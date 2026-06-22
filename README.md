@@ -611,6 +611,12 @@ sudo firewall-cmd --list-ports
    ```
 
 ### Issue 2: Frontend not accessible from other machines
+Step 3: Get Your Server IP
+bash
+# Get your IP
+SERVER_IP=$(ip addr show | grep "inet " | grep -v 127.0.0.1 | grep -v docker | head -1 | awk '{print $2}' | cut -d/ -f1)
+echo "Your Server IP: $SERVER_IP"
+
 
 **Symptoms:** Cannot access frontend from other machines
 
