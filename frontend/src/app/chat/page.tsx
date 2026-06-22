@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface User {
   id: string;
@@ -49,7 +50,17 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
 
 export default function ChatPage() {
   const router = useRouter();
-  const { onlineUsers, sendMessage, isConnected, unreadCount, unreadMessages, markAsRead, getUnreadCount, clearUnreadForUser } = useSocket();
+  const { 
+    onlineUsers, 
+    sendMessage, 
+    isConnected, 
+    unreadCount, 
+    unreadMessages, 
+    messageStatus = {},
+    markAsRead, 
+    getUnreadCount, 
+    clearUnreadForUser 
+  } = useSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -91,6 +102,7 @@ export default function ChatPage() {
           markAsRead(newMessage.id, newMessage.senderId, currentUser.id);
           clearUnreadForUser(selectedUser.id);
         }
+        toast.success(`💬 New message from ${selectedUser.name}`);
       }
     };
 
@@ -135,25 +147,17 @@ export default function ChatPage() {
         
         const allowedRoles = COMMUNICATION_RULES[userData.role]?.canChatWith || [];
         
-        // Filter users based on communication permissions
         const filtered = data.data.filter((u: User) => {
-          // Exclude current user
           if (u.id === userData.id) return false;
-          
-          // Check if user's role is allowed
           if (!allowedRoles.includes(u.role)) return false;
           
-          // For Team Members: Only allow same team (except Super User)
           if (userData.role === 'TEAM_MEMBER') {
-            // Super User is allowed for everyone
             if (u.role === 'SUPER_USER') return true;
-            // Team Lead, Team Manager, Team Member must be from same team
             if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') {
               return u.teamId === userData.teamId;
             }
           }
           
-          // For Team Manager: Allow Super User, Team Lead, other Managers, Team Members
           if (userData.role === 'TEAM_MANAGER') {
             if (u.role === 'SUPER_USER') return true;
             if (u.role === 'TEAM_LEAD') return u.teamId === userData.teamId;
@@ -161,7 +165,6 @@ export default function ChatPage() {
             if (u.role === 'TEAM_MEMBER') return u.teamId === userData.teamId;
           }
           
-          // For Team Lead: Allow Super User, other Team Leads, own Team Managers, own Team Members
           if (userData.role === 'TEAM_LEAD') {
             if (u.role === 'SUPER_USER') return true;
             if (u.role === 'TEAM_LEAD') return true;
@@ -170,7 +173,6 @@ export default function ChatPage() {
             }
           }
           
-          // For Super User: Allow all Team Leads and Team Managers
           if (userData.role === 'SUPER_USER') {
             if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER') return true;
             return false;
@@ -223,10 +225,9 @@ export default function ChatPage() {
     e.preventDefault();
     if (!message.trim() || !selectedUser) return;
     
-    sendMessage(selectedUser.id, message);
-    
+    const tempId = Date.now().toString();
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: tempId,
       content: message,
       senderId: currentUser.id,
       receiverId: selectedUser.id,
@@ -235,7 +236,11 @@ export default function ChatPage() {
       read: false
     };
     setMessages(prev => [...prev, newMessage]);
+    
+    sendMessage(selectedUser.id, message);
     setMessage('');
+    
+    toast.success('✅ Message sent!');
   };
 
   const handleRefresh = () => {
@@ -246,13 +251,14 @@ export default function ChatPage() {
         loadMessages(selectedUser.id);
       }
     }
+    toast.success('🔄 Chat refreshed');
   };
 
   const handleDownloadFile = async (fileId: string, filename: string) => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
-        alert('Please login again');
+        toast.error('Please login again');
         return;
       }
 
@@ -276,10 +282,11 @@ export default function ChatPage() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      toast.success(`✅ File "${filename}" downloaded!`);
       
     } catch (error) {
       console.error('Download error:', error);
-      alert(`Failed to download file: ${error.message}`);
+      toast.error(`Failed to download file: ${error.message}`);
     }
   };
 
@@ -297,9 +304,26 @@ export default function ChatPage() {
     return msg.fileId !== null && msg.fileId !== undefined && msg.fileId !== '';
   };
 
-  // Check if a user is from the same team
   const isSameTeam = (user: User) => {
     return currentUser?.teamId && user.teamId === currentUser.teamId;
+  };
+
+  const getMessageStatus = (msg: Message) => {
+    // For received messages, show read status if available
+    if (msg.senderId !== currentUser?.id) {
+      return msg.read ? ' ✓✓' : '';
+    }
+    // For sent messages, check messageStatus
+    if (messageStatus && messageStatus[msg.id]) {
+      const status = messageStatus[msg.id];
+      if (status === 'read') return ' ✓✓';
+      if (status === 'sent') return ' ✓';
+    }
+    // Default: show check mark if message is from current user
+    if (msg.senderId === currentUser?.id) {
+      return msg.read ? ' ✓✓' : ' ✓';
+    }
+    return '';
   };
 
   if (isLoading) {
@@ -343,14 +367,18 @@ export default function ChatPage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+      <Toaster position="top-right" />
+      
       <nav style={{ backgroundColor: 'white', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }}>
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', height: '64px' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>
                 💬 TrustBridge Chat
-                {isConnected && (
+                {isConnected ? (
                   <span style={{ fontSize: '12px', color: '#22c55e', marginLeft: '8px' }}>● Online</span>
+                ) : (
+                  <span style={{ fontSize: '12px', color: '#ef4444', marginLeft: '8px' }}>● Offline</span>
                 )}
                 {unreadCount > 0 && (
                   <span style={{ 
@@ -389,6 +417,7 @@ export default function ChatPage() {
                 onClick={() => {
                   localStorage.removeItem('auth_token');
                   localStorage.removeItem('user');
+                  toast.success('👋 Logged out');
                   router.push('/login');
                 }}
                 style={{
@@ -445,6 +474,18 @@ export default function ChatPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ fontWeight: '600', color: '#111827' }}>
                 Users ({filteredUsers.length})
+                {unreadCount > 0 && (
+                  <span style={{ 
+                    marginLeft: '8px',
+                    fontSize: '11px', 
+                    color: 'white', 
+                    backgroundColor: '#ef4444',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                  }}>
+                    {unreadCount} total new
+                  </span>
+                )}
               </h3>
               <button
                 onClick={handleRefresh}
@@ -471,6 +512,7 @@ export default function ChatPage() {
               ) : (
                 filteredUsers.map((u) => {
                   const isSameTeamUser = isSameTeam(u);
+                  const userUnread = getUnreadForUser(u.id);
                   return (
                     <div
                       key={u.id}
@@ -520,7 +562,7 @@ export default function ChatPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {getUnreadForUser(u.id) > 0 && (
+                        {userUnread > 0 && (
                           <span style={{ 
                             fontSize: '11px', 
                             color: 'white', 
@@ -531,7 +573,7 @@ export default function ChatPage() {
                             textAlign: 'center',
                             fontWeight: 'bold'
                           }}>
-                            {getUnreadForUser(u.id)}
+                            {userUnread}
                           </span>
                         )}
                         {onlineUsers.includes(u.id) && (
@@ -610,18 +652,6 @@ export default function ChatPage() {
                     ) : (
                       <span style={{ fontSize: '12px', color: '#6b7280' }}>● Offline</span>
                     )}
-                    {getUnreadForUser(selectedUser.id) > 0 && (
-                      <span style={{ 
-                        fontSize: '11px', 
-                        color: 'white', 
-                        backgroundColor: '#22c55e',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontWeight: 'bold'
-                      }}>
-                        {getUnreadForUser(selectedUser.id)} new
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -634,6 +664,7 @@ export default function ChatPage() {
                     messages.map((msg) => {
                       const isOwn = msg.senderId === currentUser?.id;
                       const isFile = isFileMessage(msg);
+                      const status = getMessageStatus(msg);
                       
                       return (
                         <div
@@ -685,8 +716,7 @@ export default function ChatPage() {
                               textAlign: 'right'
                             }}>
                               {formatTime(msg.createdAt)}
-                              {!isOwn && msg.read && ' ✓✓'}
-                              {!isOwn && !msg.read && ' ✓'}
+                              {status}
                             </p>
                           </div>
                         </div>
