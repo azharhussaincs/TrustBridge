@@ -2,11 +2,25 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Alert } from '@/components/ui/Alert';
+import { SecurityStrip } from '@/components/layout/SecurityStrip';
+import { ROLE_ICONS, ROLE_LABELS, getRoleHomePath } from '@/lib/roles';
+import { apiUrl } from '@/lib/api/config';
+
+const ROLE_PREVIEW = [
+  { role: 'ADMIN', desc: 'System config & onboarding' },
+  { role: 'SUPER_USER', desc: 'Executive updates & oversight' },
+  { role: 'TEAM_LEAD', desc: 'Team management & chat' },
+  { role: 'TEAM_MANAGER', desc: 'Operational coordination' },
+  { role: 'TEAM_MEMBER', desc: 'Secure team messaging' },
+] as const;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -18,175 +32,148 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://192.168.18.139:5000/api/auth/login', {
+      const response = await fetch(apiUrl('/auth/login'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         localStorage.setItem('auth_token', data.data.token);
         localStorage.setItem('user', JSON.stringify(data.data.user));
-        toast.success('✅ Login successful!');
-        router.push('/dashboard');
+        window.dispatchEvent(new Event('auth-changed'));
+        toast.success('Welcome back!');
+        router.push(getRoleHomePath(data.data.user.role));
       } else {
         setError(data.message || 'Login failed');
-        toast.error('❌ ' + (data.message || 'Login failed'));
+        toast.error(data.message || 'Login failed');
       }
-    } catch (err) {
-      console.error('Login error:', err);
+    } catch {
       setError('Connection error. Please try again.');
-      toast.error('❌ Connection error. Please try again.');
+      toast.error('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      backgroundColor: '#f3f4f6'
-    }}>
-      <Toaster position="top-right" />
-      
-      <div style={{
-        maxWidth: '400px',
-        width: '100%',
-        padding: '32px',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
-      }}>
-        <h2 style={{ 
-          fontSize: '24px', 
-          fontWeight: 'bold', 
-          textAlign: 'center',
-          marginBottom: '8px'
-        }}>
-          🔐 TrustBridge
-        </h2>
-        <p style={{ 
-          textAlign: 'center', 
-          color: '#6b7280',
-          marginBottom: '32px'
-        }}>
-          Secure LAN Communication
-        </p>
+    <div className="relative min-h-screen overflow-hidden page-shell">
+      {/* Background */}
+      <div className="pointer-events-none absolute inset-0 bg-mesh-dark" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 bg-grid-pattern bg-grid opacity-30" aria-hidden="true" />
+      <div className="pointer-events-none absolute left-1/4 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-brand-600/20 blur-[120px] animate-pulse-soft" aria-hidden="true" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-[400px] w-[400px] rounded-full bg-indigo-600/15 blur-[100px]" aria-hidden="true" />
 
-        <form onSubmit={handleSubmit}>
-          {error && (
-            <div style={{
-              color: '#ef4444',
-              fontSize: '14px',
-              textAlign: 'center',
-              backgroundColor: '#fef2f2',
-              padding: '12px',
-              borderRadius: '4px',
-              marginBottom: '16px'
-            }}>
-              {error}
+      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col lg:flex-row">
+        {/* Left — branding & roles */}
+        <div className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-12 lg:py-16">
+          <div className="animate-slide-up">
+            <div className="mb-6 inline-flex items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 text-2xl shadow-glow ring-1 ring-white/20">
+                🔐
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                  Trust<span className="text-blue-400">Bridge</span>
+                </h1>
+                <p className="text-sm text-slate-400">Secure LAN Communication</p>
+              </div>
             </div>
-          )}
 
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{
-                marginTop: '4px',
-                display: 'block',
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '16px'
-              }}
-              placeholder="admin@company.com"
-            />
-          </div>
+            <p className="max-w-md text-lg leading-relaxed text-slate-300">
+              Role-based encrypted messaging and file sharing for your organization&apos;s internal network.
+            </p>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{
-                  marginTop: '4px',
-                  display: 'block',
-                  width: '100%',
-                  padding: '8px 12px',
-                  paddingRight: '40px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '16px'
-                }}
-                placeholder="admin123"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '18px',
-                  padding: '4px'
-                }}
-              >
-                {showPassword ? '👁️' : '👁️‍🗨️'}
-              </button>
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {ROLE_PREVIEW.map(({ role, desc }) => (
+                <div key={role} className="feature-tile">
+                  <div className="flex items-center gap-2 font-semibold text-white">
+                    <span>{ROLE_ICONS[role]}</span>
+                    {ROLE_LABELS[role]}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">{desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10 hidden lg:block">
+              <SecurityStrip variant="dark" />
             </div>
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '10px',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              opacity: loading ? 0.5 : 1
-            }}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
+        {/* Right — login form */}
+        <div className="flex flex-1 items-center justify-center px-6 py-12 lg:px-12">
+          <div className="w-full max-w-md animate-slide-up">
+            <div className="glass-card p-8">
+              <div className="mb-8 text-center lg:text-left">
+                <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Enter your credentials to access your role-based workspace
+                </p>
+              </div>
 
-          <div style={{ 
-            marginTop: '16px', 
-            fontSize: '12px', 
-            textAlign: 'center', 
-            color: '#6b7280' 
-          }}>
-            Test: admin@company.com / admin123
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {error && <Alert variant="error">{error}</Alert>}
+
+                <Input
+                  label="Username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  placeholder="admin"
+                  autoComplete="username"
+                />
+
+                <div>
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className="input-light pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? '👁️' : '👁️‍🗨️'}
+                    </button>
+                  </div>
+                </div>
+
+                <Button type="submit" fullWidth size="lg" disabled={loading} className="shadow-glow">
+                  {loading ? 'Signing in...' : 'Sign In to TrustBridge'}
+                </Button>
+              </form>
+
+              <div className="mt-6 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Demo accounts</p>
+                <div className="mt-2 space-y-1 text-sm text-slate-600">
+                  <p><strong className="text-slate-800">admin</strong> / admin123</p>
+                  <p><strong className="text-slate-800">teamlead</strong> / admin123</p>
+                  <p><strong className="text-slate-800">teammember</strong> / admin123</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 lg:hidden">
+              <SecurityStrip variant="dark" />
+            </div>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

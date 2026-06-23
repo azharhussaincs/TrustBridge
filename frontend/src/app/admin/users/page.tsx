@@ -2,23 +2,35 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Badge, StatusDot } from '@/components/ui/Badge';
+import { Alert } from '@/components/ui/Alert';
+import { Modal, ModalFooter } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { getRoleBadgeStyle } from '@/lib/roles';
+import { cn } from '@/lib/utils';
+import { apiUrl, apiFetch, authHeaders } from '@/lib/api/config';
 
 interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
   role: string;
   isOnline: boolean;
 }
 
-// Admin can ONLY add Super User and Team Lead (per SRS)
 const ADMIN_ALLOWED_ROLES = ['SUPER_USER', 'TEAM_LEAD'];
 
 export default function AdminUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -27,11 +39,10 @@ export default function AdminUsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    username: '',
     password: '',
     role: 'SUPER_USER'
   });
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -48,39 +59,42 @@ export default function AdminUsersPage() {
     }
     
     setCurrentUser(user);
+    setAuthReady(true);
     fetchUsers(token);
-  }, []);
+  }, [router]);
 
   const fetchUsers = async (token: string) => {
+    setUsersLoading(true);
+    setFetchError('');
     try {
-      const response = await fetch('http://192.168.18.139:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await apiFetch('/users', {
+        headers: authHeaders(token),
       });
       const data = await response.json();
       if (data.success) {
         setUsers(data.data);
+      } else {
+        setFetchError(data.message || 'Failed to load users');
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error fetching users';
+      setFetchError(message);
       console.error('Error fetching users:', error);
     } finally {
-      setLoading(false);
+      setUsersLoading(false);
     }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
     
     const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
-      const response = await fetch('http://192.168.18.139:5000/api/users', {
+      const response = await apiFetch('/users', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders(token, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(formData)
       });
       
@@ -88,7 +102,7 @@ export default function AdminUsersPage() {
       
       if (data.success) {
         toast.success(`✅ ${formData.name} (${formData.role}) created successfully!`);
-        setFormData({ name: '', email: '', password: '', role: 'SUPER_USER' });
+        setFormData({ name: '', username: '', password: '', role: 'SUPER_USER' });
         setShowForm(false);
         fetchUsers(token);
       } else {
@@ -111,9 +125,9 @@ export default function AdminUsersPage() {
     if (!token) return;
 
     try {
-      const response = await fetch(`http://192.168.18.139:5000/api/users/${userId}`, {
+      const response = await apiFetch(`/users/${userId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: authHeaders(token),
       });
       
       const data = await response.json();
@@ -143,12 +157,9 @@ export default function AdminUsersPage() {
     if (!token) return;
 
     try {
-      const response = await fetch(`http://192.168.18.139:5000/api/users/${selectedUser.id}/reset-password`, {
+      const response = await apiFetch(`/users/${selectedUser.id}/reset-password`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders(token, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ newPassword })
       });
       
@@ -174,307 +185,254 @@ export default function AdminUsersPage() {
     setShowPasswordModal(true);
   };
 
-  if (loading) {
-    return <div style={{ padding: '20px' }}>Loading users...</div>;
+  if (!authReady) {
+    return <LoadingSpinner fullScreen message="Checking access..." />;
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      <Toaster position="top-right" />
-      
-      <nav style={{ backgroundColor: '#1e293b', padding: '0 20px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', height: '64px', alignItems: 'center' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#e2e8f0' }}>👥 User Management</h1>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <button onClick={() => router.push('/admin')} style={{ padding: '8px 16px', backgroundColor: '#64748b', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              ⚙️ Admin Panel
-            </button>
-            <button onClick={() => router.push('/dashboard')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Dashboard
-            </button>
-            <button onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+    <div className="page-shell">
+      <Navbar variant="admin" title="👥 User Management">
+        <Button onClick={() => router.push('/admin')} variant="secondary" size="sm">
+          ⚙️ Admin Panel
+        </Button>
+        <Button onClick={() => router.push('/dashboard')} size="sm">
+          Dashboard
+        </Button>
+        <Button
+          onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }}
+          variant="danger"
+          size="sm"
+        >
+          Logout
+        </Button>
+      </Navbar>
 
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px' }}>
-        <div style={{
-          backgroundColor: '#dbeafe',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          border: '1px solid #93c5fd'
-        }}>
-          <p style={{ color: '#1e40af', fontSize: '14px' }}>
-            ⚠️ <strong>Admin Permissions:</strong> You can only add <strong>Super User</strong> and <strong>Team Lead</strong> roles.
-            Team Members and Team Managers are added by Team Leads.
-          </p>
-        </div>
+      <PageContainer>
+        <Alert variant="info" className="mb-4">
+          <strong>Admin Permissions:</strong> You can only add <strong>Super User</strong> and <strong>Team Lead</strong> roles.
+          Team Members and Team Managers are added by Team Leads.
+        </Alert>
 
-        <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>Users ({users.length})</h2>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#2563eb',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer'
+        {fetchError && (
+          <Alert variant="error" className="mb-4">
+            {fetchError}
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                const token = localStorage.getItem('auth_token');
+                if (token) fetchUsers(token);
               }}
             >
-              {showForm ? '❌ Cancel' : '➕ Add User (Super User / Team Lead)'}
-            </button>
-          </div>
+              Retry
+            </Button>
+          </Alert>
+        )}
+
+        <Card>
+          <CardHeader
+            title={`Users (${users.length})`}
+            action={
+              <Button onClick={() => setShowForm(!showForm)} size="sm">
+                {showForm ? '❌ Cancel' : '➕ Add User (Super User / Team Lead)'}
+              </Button>
+            }
+          />
 
           {showForm && (
-            <form onSubmit={handleCreateUser} style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e5e7eb' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+            <form onSubmit={handleCreateUser} className="panel-light mb-6 animate-slide-up">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Input
+                  label="Name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  placeholder="John Doe"
+                  className="input-light"
+                />
+                <Input
+                  label="Username"
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  required
+                  placeholder="johndoe"
+                  className="input-light"
+                />
+                <Input
+                  label="Password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  placeholder="••••••••"
+                  className="input-light"
+                />
                 <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Name</label>
-                  <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', marginTop: '4px' }} placeholder="John Doe" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Email</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', marginTop: '4px' }} placeholder="user@company.com" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Password</label>
-                  <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', marginTop: '4px' }} placeholder="••••••••" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Role</label>
-                  <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', marginTop: '4px' }}>
+                  <label htmlFor="role" className="label-text mb-1.5 block text-sm font-medium">Role</label>
+                  <select
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="input-light"
+                  >
                     {ADMIN_ALLOWED_ROLES.map((role) => (
                       <option key={role} value={role}>{role}</option>
                     ))}
                   </select>
-                  <p style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                  <p className="hint-text mt-1 text-[10px]">
                     Admin can only add Super User and Team Lead
                   </p>
                 </div>
               </div>
-              <button type="submit" style={{ marginTop: '12px', padding: '8px 24px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+              <Button type="submit" variant="success" className="mt-4">
                 Create User
-              </button>
+              </Button>
             </form>
           )}
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-wrap">
+            <table className="table-dark">
               <thead>
-                <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Email</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Role</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                <tr>
+                  <th>Name</th>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => {
+                {usersLoading ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12 text-center">
+                      <LoadingSpinner message="Loading users..." size="sm" />
+                    </td>
+                  </tr>
+                ) : users.length === 0 && !fetchError ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-card-muted">
+                      No users found.
+                    </td>
+                  </tr>
+                ) : (
+                users.map((user) => {
                   const isCurrentUser = user.id === currentUser?.id;
                   return (
-                    <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: isCurrentUser ? '#fef3c7' : 'transparent' }}>
-                      <td style={{ padding: '12px' }}>
+                    <tr
+                      key={user.id}
+                      className={cn(isCurrentUser && 'ring-1 ring-inset ring-amber-400/50')}
+                    >
+                      <td>
                         {user.name}
-                        {isCurrentUser && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#92400e', backgroundColor: '#fef3c7', padding: '2px 6px', borderRadius: '4px' }}>(You)</span>}
+                        {isCurrentUser && (
+                          <Badge variant="warning" className="ml-2 text-[10px]">You</Badge>
+                        )}
                       </td>
-                      <td style={{ padding: '12px' }}>{user.email}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          backgroundColor: user.role === 'ADMIN' ? '#dbeafe' :
-                                        user.role === 'SUPER_USER' ? '#fef3c7' :
-                                        user.role === 'TEAM_LEAD' ? '#d1fae5' :
-                                        user.role === 'TEAM_MANAGER' ? '#e0e7ff' :
-                                        '#f3f4f6',
-                          color: user.role === 'ADMIN' ? '#1e40af' :
-                                 user.role === 'SUPER_USER' ? '#92400e' :
-                                 user.role === 'TEAM_LEAD' ? '#065f46' :
-                                 user.role === 'TEAM_MANAGER' ? '#3730a3' :
-                                 '#374151'
-                        }}>
+                      <td className="text-card-muted">{user.username}</td>
+                      <td>
+                        <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', getRoleBadgeStyle(user.role))}>
                           {user.role}
                         </span>
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        {user.isOnline ? (
-                          <span style={{ color: '#22c55e' }}>● Online</span>
-                        ) : (
-                          <span style={{ color: '#6b7280' }}>● Offline</span>
-                        )}
+                      <td>
+                        <StatusDot online={user.isOnline} />
                       </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      <td>
+                        <div className="flex flex-wrap gap-1.5">
                           {!isCurrentUser && (
-                            <button
+                            <Button
                               onClick={() => openPasswordModal(user)}
-                              style={{
-                                padding: '4px 12px',
-                                backgroundColor: '#8b5cf6',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '12px'
-                              }}
+                              size="sm"
+                              className="bg-violet-500 hover:bg-violet-600 text-xs"
                             >
                               🔑 Reset Password
-                            </button>
+                            </Button>
                           )}
                           {isCurrentUser ? (
-                            <span style={{ fontSize: '12px', color: '#6b7280' }}>Cannot delete yourself</span>
+                            <span className="text-xs text-card-muted">Cannot delete yourself</span>
                           ) : (
-                            <button
+                            <Button
                               onClick={() => handleDeleteUser(user.id, user.name)}
-                              style={{
-                                padding: '4px 12px',
-                                backgroundColor: '#ef4444',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '12px'
-                              }}
+                              variant="danger"
+                              size="sm"
+                              className="text-xs"
                             >
                               Delete
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </td>
                     </tr>
                   );
-                })}
+                })
+                )}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
+        </Card>
+      </PageContainer>
 
-      {/* Password Reset Modal */}
-      {showPasswordModal && selectedUser && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '32px',
-            borderRadius: '8px',
-            maxWidth: '400px',
-            width: '100%',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px' }}>
-              🔑 Reset Password
-            </h3>
-            <p style={{ color: '#6b7280', marginBottom: '16px', fontSize: '14px' }}>
-              Resetting password for: <strong>{selectedUser.name}</strong>
-              <br />
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{selectedUser.email}</span>
+      <Modal
+        isOpen={showPasswordModal && !!selectedUser}
+        onClose={() => {
+          setShowPasswordModal(false);
+          setSelectedUser(null);
+          setNewPassword('');
+        }}
+        title="🔑 Reset Password"
+        description={
+          <>
+            Resetting password for: <strong>{selectedUser?.name}</strong>
+            <br />
+            <span className="text-xs text-slate-400">{selectedUser?.username}</span>
+          </>
+        }
+      >
+        <form onSubmit={handleResetPassword}>
+          <div>
+            <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-slate-700">
+              New Password
+            </label>
+            <div className="relative">
+              <input
+                id="new-password"
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={6}
+                className="input-base pr-11"
+                placeholder="Enter new password (min 6 chars)"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500">
+              Password must be at least 6 characters
             </p>
-            
-            <form onSubmit={handleResetPassword}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                  New Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    style={{
-                      marginTop: '4px',
-                      display: 'block',
-                      width: '100%',
-                      padding: '8px 12px',
-                      paddingRight: '40px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '16px'
-                    }}
-                    placeholder="Enter new password (min 6 chars)"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '18px',
-                      padding: '4px'
-                    }}
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                </div>
-                <p style={{ fontSize: '10px', color: '#6b7280', marginTop: '4px' }}>
-                  Password must be at least 6 characters
-                </p>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setSelectedUser(null);
-                    setNewPassword('');
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '8px',
-                    backgroundColor: '#e5e7eb',
-                    color: '#374151',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 2,
-                    padding: '8px',
-                    backgroundColor: '#8b5cf6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  🔑 Reset Password
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+          
+          <ModalFooter
+            onCancel={() => {
+              setShowPasswordModal(false);
+              setSelectedUser(null);
+              setNewPassword('');
+            }}
+            confirmLabel="🔑 Reset Password"
+            confirmVariant="primary"
+            isSubmit
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

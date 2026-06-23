@@ -55,6 +55,23 @@ class MessageService {
     });
   }
 
+  async getUnreadSummary(userId) {
+    const unread = await prisma.message.findMany({
+      where: { receiverId: userId, read: false },
+      select: { senderId: true }
+    });
+
+    const bySender = {};
+    unread.forEach((msg) => {
+      bySender[msg.senderId] = (bySender[msg.senderId] || 0) + 1;
+    });
+
+    return {
+      unreadCount: unread.length,
+      bySender
+    };
+  }
+
   async getRecentConversations(userId) {
     // Get distinct users the current user has chatted with
     const messages = await prisma.message.findMany({
@@ -83,7 +100,7 @@ class MessageService {
       select: {
         id: true,
         name: true,
-        email: true,
+        username: true,
         role: true,
         isOnline: true
       }

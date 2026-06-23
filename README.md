@@ -1,827 +1,728 @@
-# ✅ **Complete README.md - Step by Step**
+# TrustBridge
 
-Copy and paste this entire content into your `README.md` file:
+**Secure LAN Communication Platform** — Role-based encrypted messaging and file sharing for organizational internal networks. No cloud dependency required.
 
-```markdown
-# 🔐 TrustBridge - Secure LAN Communication System
-
-A secure, role-based, and permission-based local area network (LAN) communication application with AES-GCM encryption and Zero Trust architecture.
-
----
-
-## 📖 Table of Contents
-
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Architecture](#architecture)
-4. [Project Structure](#project-structure)
-5. [Tech Stack](#tech-stack)
-6. [Prerequisites](#prerequisites)
-7. [Step-by-Step Server Setup](#step-by-step-server-setup)
-8. [LAN Deployment Guide](#lan-deployment-guide)
-9. [What to Share with Team Members](#what-to-share-with-team-members)
-10. [User Credentials](#user-credentials)
-11. [Testing the Application](#testing-the-application)
-12. [Troubleshooting](#troubleshooting)
-13. [Security Features](#security-features)
-14. [Quick Start Commands](#quick-start-commands)
-15. [Deployment Checklist](#deployment-checklist)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js)](https://nodejs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js)](https://nextjs.org)
+[![License](https://img.shields.io/badge/License-Proprietary-blue)]()
 
 ---
 
-## 📖 Overview
+## Table of Contents
 
-**TrustBridge** is a self-contained, modular communication tool designed to operate entirely over a LAN without requiring internet connectivity. It enables secure, encrypted text messaging and file sharing within an organization's internal network.
-
-### 🌐 Network Independence
-- **100% LAN-based** - No internet required
-- Works offline on local network
-- No external cloud servers or APIs
-- All communication stays within your network
-
-### 🎯 Purpose
-- Secure internal communication within organizations
-- Role-based access control for different departments
-- Encrypted file sharing with no size limits
-- Zero Trust security architecture
-- Complete offline functionality
-
----
-
-## 🚀 Features
-
-### Core Features
-- ✅ **Zero Trust Architecture** - Every request authenticated and authorized
-- ✅ **AES-GCM Encryption** - All messages and files encrypted end-to-end
-- ✅ **LAN Independence** - Works completely offline, no internet needed
-- ✅ **Real-time Chat** - Instant messaging with Socket.io
-- ✅ **File Sharing** - WhatsApp-like file sharing with encryption
-- ✅ **Multiple File Selection** - Select and send multiple files at once
-- ✅ **Any File Type Support** - Images, videos, documents, executables, etc.
-- ✅ **Offline Message Delivery** - Messages delivered when user comes online
-- ✅ **Unread Message Count** - Green badge like WhatsApp
-- ✅ **5 Role-Based Access Control** - Admin, Super User, Team Lead, Team Manager, Team Member
-
-### User Roles & Permissions
-
-| Role | Description | Permissions |
-|------|-------------|-------------|
-| **Admin** | System Administrator | Full system management, user creation, view logs |
-| **Super User** | Company Owner | Receives updates, communicates with Leads/Managers |
-| **Team Lead** | Department Manager | Manages team, chats with team members |
-| **Team Manager** | Sub-manager | Manages team members |
-| **Team Member** | Standard User | Basic chat and file sharing |
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Architecture Overview](#architecture-overview)
+- [Tech Stack](#tech-stack)
+- [Folder Structure](#folder-structure)
+- [Database Structure](#database-structure)
+- [Role Structure](#role-structure)
+- [Permission Matrix](#permission-matrix)
+- [Installation Guide](#installation-guide)
+- [Local Development](#local-development)
+- [Environment Variables](#environment-variables)
+- [Running Backend](#running-backend)
+- [Running Frontend](#running-frontend)
+- [Running Full Stack](#running-full-stack)
+- [Testing](#testing)
+- [LAN Deployment](#lan-deployment)
+- [Windows Deployment](#windows-deployment)
+- [Ubuntu Deployment](#ubuntu-deployment)
+- [Docker Deployment](#docker-deployment)
+- [Docker Compose Deployment](#docker-compose-deployment)
+- [NGINX Deployment](#nginx-deployment)
+- [Production Deployment](#production-deployment)
+- [Backup Strategy](#backup-strategy)
+- [Security Features](#security-features)
+- [Troubleshooting](#troubleshooting)
+- [Common Errors](#common-errors)
+- [API Overview](#api-overview)
+- [Future Roadmap](#future-roadmap)
+- [Contributing Guide](#contributing-guide)
+- [License](#license)
 
 ---
 
-## 🏗️ Architecture
+## Project Overview
+
+TrustBridge is an enterprise-oriented **LAN-first** communication system designed for organizations that need secure internal messaging without relying on external cloud services. It provides:
+
+- **Five distinct user roles** with isolated dashboards and permission boundaries
+- **Real-time 1:1 chat** via Socket.io with offline message delivery
+- **AES-256-GCM encrypted file sharing** between authorized users
+- **JWT-authenticated REST API** with socket-level RBAC
+- **Zero Trust principles** — every request and socket event is validated
+
+**Current SRS compliance:** ~42% — core LAN chat, auth, roles, and file sharing are operational. See [docs/SRS_COMPLIANCE_REPORT.md](docs/SRS_COMPLIANCE_REPORT.md) for the full gap analysis.
+
+---
+
+## Features
+
+### Implemented ✅
+| Feature | Description |
+|---------|-------------|
+| Username login | bcrypt password hashing, JWT sessions |
+| Role-based dashboards | Admin, Super User, Team Lead, Manager, Member |
+| Real-time chat | Socket.io, typing indicators, online status, read receipts |
+| Unread badges | Per-user and total counts |
+| File sharing | AES-GCM encrypted upload/download with progress |
+| LAN binding | Server listens on `0.0.0.0` for network access |
+| Socket security | JWT verification + `canUsersChat()` RBAC |
+| Enterprise blue UI | Centralized theme via `theme.ts` + CSS variables |
+
+### Planned / Partial ⚠️
+| Feature | Status |
+|---------|--------|
+| Group / team chat | Not implemented |
+| Audit log database | Demo UI only |
+| Notification center | Toasts + badges only |
+| Chunk file transfer | Single POST upload |
+| LAN discovery UI | `discoverServer.js` exists, not wired |
+| Dark/light mode toggle | CSS variables prepared |
+| Settings page | Not implemented |
+
+---
+
+## Screenshots
+
+> Screenshots are captured from the running application at `http://<LAN-IP>:3000`.
+
+| Screen | Path | Description |
+|--------|------|-------------|
+| Login | `/login` | Blue enterprise login with role preview cards |
+| Admin Panel | `/admin` | System overview, hierarchy, audit placeholder |
+| Super User | `/super-user` | Executive dashboard with chat access |
+| Team Lead | `/team-lead` | Team manager/member CRUD |
+| Chat | `/chat` | Sidebar, bubbles, typing, file attach |
+| Team Manager | `/team-manager` | Operational workspace |
+| Team Member | `/team-member` | Staff workspace |
+
+To capture locally:
+```bash
+# After starting the app
+xdg-open http://localhost:3000/login
+```
+
+---
+
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    LAN Network                              │
-│                                                             │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
-│  │   Server    │◄───►│   Client 1  │     │   Client 2  │  │
-│  │  Port 5000  │     │  Port 3000  │     │  Port 3001  │  │
-│  │  (Backend)  │     │ (Frontend)  │     │ (Frontend)  │  │
-│  └─────────────┘     └─────────────┘     └─────────────┘  │
-│         │                                                    │
-│         ▼                                                    │
-│  ┌─────────────┐                                            │
-│  │   SQLite    │                                            │
-│  │  Database   │                                            │
-│  └─────────────┘                                            │
-│                                                             │
-│  🔐 All communication is AES-GCM encrypted                  │
-│  🌐 No internet required                                    │
+│                    Client Browsers (LAN)                       │
+│              Next.js 14 App  :3000  (0.0.0.0)                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTP /api/*
+                           │ WebSocket (Socket.io)
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│              TrustBridge Backend  :5000  (0.0.0.0)           │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
+│  │ Express API │  │ Socket.io    │  │ Permission Service  │ │
+│  │ JWT Auth    │  │ JWT + RBAC   │  │ canUsersChat()      │ │
+│  └──────┬──────┘  └──────┬───────┘  └─────────────────────┘ │
+│         │                │                                   │
+│         ▼                ▼                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Prisma ORM → SQLite (dev.db)                        │   │
+│  │ uploads/ — AES-GCM encrypted files + .iv/.tag       │   │
+│  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**No external cloud services** are required for runtime operation.
+
 ---
 
-## 📁 Project Structure
+## Tech Stack
 
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| Backend | Node.js 20, Express 5, Socket.io 4 |
+| Database | SQLite via Prisma 5 |
+| Auth | JWT (jsonwebtoken), bcryptjs |
+| Encryption | AES-256-GCM (Node crypto) |
+| Real-time | Socket.io |
+| Notifications | react-hot-toast |
+
+---
+
+## Folder Structure
+
+### Repository Root
 ```
 TrustBridge/
-├── backend/
-│   ├── src/
-│   │   ├── modules/
-│   │   │   ├── auth/          # Authentication Module
-│   │   │   ├── crypto/        # AES-GCM Encryption Module
-│   │   │   ├── user/          # User Management (RBAC)
-│   │   │   ├── messaging/     # Real-time Chat
-│   │   │   ├── file-transfer/ # Secure File Sharing
-│   │   │   └── websocket/     # WebSocket Module
-│   │   ├── config/            # Configuration
-│   │   ├── middleware/        # Auth & Zero Trust Middleware
-│   │   └── utils/             # Utilities
-│   ├── prisma/                # Database Schema
-│   ├── uploads/               # Encrypted File Storage
-│   └── server.js              # Server Entry
-├── frontend/
-│   ├── src/
-│   │   ├── app/               # Next.js App Router
-│   │   │   ├── admin/         # Admin Panel
-│   │   │   ├── super-user/    # Super User Dashboard
-│   │   │   ├── team-lead/     # Team Lead Panel
-│   │   │   ├── chat/          # Chat Interface
-│   │   │   └── login/         # Login Page
-│   │   ├── components/        # Reusable Components
-│   │   └── context/           # Socket Context
-│   └── package.json
-└── README.md
+├── backend/                 # Node.js API + WebSocket server
+├── frontend/                # Next.js web application
+├── docs/                    # Audit reports, deployment, permissions
+├── README.md                # This file
+├── docker-compose.yml       # Stub — see DEPLOYMENT_GUIDE.md
+├── fix-multi-router.sh      # LAN IP env helper
+└── forward-ports.sh         # iptables forwarding helper
+```
+
+### Backend (`backend/`)
+```
+backend/
+├── server.js                # Entry point — HTTP + Socket.io, JWT middleware
+├── prisma/
+│   ├── schema.prisma        # Database models
+│   ├── seed.js              # Demo user accounts
+│   ├── dev.db               # SQLite database (runtime)
+│   └── migrations/          # Schema migrations
+├── uploads/                 # Encrypted file storage (+ .iv, .tag sidecars)
+└── src/
+    ├── app.js               # Express app, routes, CORS, health check
+    ├── config/
+    │   ├── constants.js     # Roles, communication rules, encryption constants
+    │   └── encryption.js    # Key loading utilities
+    ├── services/
+    │   └── permission.service.js  # canUsersChat() — RBAC for messaging
+    └── modules/
+        ├── auth/            # Login, JWT, middleware
+        │   ├── auth.service.js
+        │   ├── auth.controller.js
+        │   ├── auth.middleware.js
+        │   └── auth.routes.js
+        ├── user/            # User CRUD, role creation rules
+        │   ├── user.service.js
+        │   ├── user.controller.js
+        │   └── user.routes.js
+        ├── messaging/       # Message history, unread counts
+        │   ├── message.service.js
+        │   ├── message.controller.js
+        │   └── message.routes.js
+        ├── file-transfer/   # Upload, download, AES-GCM encryption
+        │   ├── file.service.js
+        │   ├── file.controller.js
+        │   └── file.routes.js
+        └── crypto/          # Encryption API endpoints
+            ├── encryption.js
+            ├── crypto.controller.js
+            └── crypto.routes.js
+```
+
+| Folder | Purpose | Key Files |
+|--------|---------|-----------|
+| `src/modules/auth/` | Authentication & JWT | `auth.service.js`, `auth.middleware.js` |
+| `src/modules/user/` | User management & RBAC creation rules | `user.service.js` |
+| `src/modules/messaging/` | Chat message persistence | `message.service.js` |
+| `src/modules/file-transfer/` | Encrypted file handling | `file.service.js` |
+| `src/modules/crypto/` | Crypto utilities exposed via API | `encryption.js` |
+| `src/services/` | Cross-cutting business logic | `permission.service.js` |
+| `src/config/` | Constants and encryption config | `constants.js` |
+| `prisma/` | Schema, migrations, seed | `schema.prisma`, `seed.js` |
+
+### Frontend (`frontend/`)
+```
+frontend/
+├── src/
+│   ├── app/                 # Next.js App Router pages
+│   │   ├── login/           # Authentication page
+│   │   ├── admin/           # Admin dashboard + users
+│   │   ├── super-user/      # Executive dashboard
+│   │   ├── team-lead/       # Team Lead panel
+│   │   ├── team-manager/    # Team Manager panel
+│   │   ├── team-member/     # Team Member panel
+│   │   ├── chat/            # Real-time messaging UI
+│   │   ├── dashboard/       # Generic role hub
+│   │   ├── globals.css      # Design system + CSS variables
+│   │   └── layout.tsx       # Root layout, SocketProvider
+│   ├── components/
+│   │   ├── layout/          # Navbar, RoleHero, QuickActionGrid
+│   │   ├── ui/              # Button, Card, Badge, Input, etc.
+│   │   ├── chat/            # FileSharing component
+│   │   └── providers/       # ToastProvider
+│   ├── context/
+│   │   └── SocketContext.jsx  # Socket.io state, unread, typing
+│   └── lib/
+│       ├── api/             # apiUrl(), fetch helpers
+│       ├── roles.ts         # Role labels, colors, home paths
+│       ├── theme.ts         # Centralized design tokens
+│       ├── discoverServer.js  # LAN health probe (unused in UI)
+│       └── utils.ts         # cn() classname helper
+├── tailwind.config.js       # Tailwind theme extensions
+└── .env.local               # API/WebSocket URLs (not committed)
+```
+
+| Folder | Purpose | Key Files |
+|--------|---------|-----------|
+| `src/app/` | Route pages per role | `login/page.tsx`, `chat/page.tsx` |
+| `src/components/layout/` | Shared layout chrome | `Navbar.tsx`, `RoleHero.tsx` |
+| `src/components/ui/` | Reusable UI primitives | `Button.tsx`, `Card.tsx` |
+| `src/components/chat/` | File upload in chat | `FileSharing.jsx` |
+| `src/context/` | Global React state | `SocketContext.jsx` |
+| `src/lib/` | Utilities & config | `roles.ts`, `theme.ts`, `api/config.ts` |
+
+### Documentation (`docs/`)
+```
+docs/
+├── SRS_COMPLIANCE_REPORT.md
+├── SECURITY_AUDIT.md
+├── NETWORK_AUDIT.md
+├── PERFORMANCE_AUDIT.md
+├── RUN_VERIFICATION.md
+├── BROWSER_TEST_REPORT.md
+├── LOGIN_TEST_REPORT.md
+├── DEPLOYMENT_GUIDE.md
+├── PERMISSIONS.md
+├── DATABASE.md
+└── PHASE0_IMPLEMENTATION_PLAN.md
 ```
 
 ---
 
-## 🚀 Tech Stack
+## Database Structure
 
-| Component | Technology |
-|-----------|------------|
-| **Frontend** | Next.js 14 (App Router) + TypeScript |
-| **Backend** | Node.js + Express |
-| **Real-time** | Socket.io |
-| **Database** | SQLite with Prisma ORM |
-| **Encryption** | AES-GCM (Node.js Crypto) |
-| **Security** | Zero Trust Architecture |
-| **Authentication** | JWT + bcrypt |
-| **Styling** | Inline CSS (No external dependencies) |
+**Engine:** SQLite (`backend/prisma/dev.db`)
 
----
+### Models
 
-## 📋 Prerequisites
+#### User
+| Field | Type | Description |
+|-------|------|-------------|
+| id | String (cuid) | Primary key |
+| username | String (unique) | Login identifier |
+| password | String | bcrypt hash |
+| name | String | Display name |
+| role | String | ADMIN, SUPER_USER, TEAM_LEAD, TEAM_MANAGER, TEAM_MEMBER |
+| teamId | String? | Team assignment |
+| isOnline | Boolean | Socket presence |
+| lastSeen | DateTime | Last activity |
 
-### For Server Machine:
-- **Node.js** v20+ or higher
-- **npm** v10+ or higher
-- **Git** (optional, for cloning)
-- **Static IP Address** recommended (e.g., 192.168.1.100)
+#### Message
+| Field | Type | Description |
+|-------|------|-------------|
+| id | String | Primary key |
+| content | String | Message body |
+| senderId / receiverId | String | Participants |
+| fileId | String? | Linked file |
+| read / readAt | Boolean / DateTime | Read receipt |
+| isEncrypted | Boolean | Flag (encryption at rest planned) |
 
-### For Client Machines:
-- **Modern web browser** (Chrome, Firefox, Edge, Safari)
-- **Network access** to the server machine
-- **No installation required** - Just open the URL!
+#### File
+| Field | Type | Description |
+|-------|------|-------------|
+| id | String | Primary key |
+| filename | String | Original name |
+| path | String | Storage path |
+| size | Int | Bytes |
+| mimeType | String | MIME type |
+| senderId / receiverId | String | Transfer parties |
+| isEncrypted | Boolean | Always true (AES-GCM) |
 
----
+#### Team
+| Field | Type | Description |
+|-------|------|-------------|
+| id | String | Primary key |
+| name | String | Team name |
+| leadId | String? | Team Lead reference |
 
-## 🔧 Step-by-Step Server Setup
+> **Planned tables:** AuditLog, Notification, Session — see [docs/DATABASE.md](docs/DATABASE.md)
 
-### Step 1: Clone the Repository
-
+### Migrations
 ```bash
-git clone https://github.com/azharhussaincs/TrustBridge.git
+cd backend
+npx prisma migrate deploy
+npx prisma generate
+```
+
+---
+
+## Role Structure
+
+| Role | Code | Dashboard | Chat | User Management |
+|------|------|-----------|------|-----------------|
+| Admin | `ADMIN` | `/admin` | ❌ No | Create Super User & Team Lead |
+| Super User | `SUPER_USER` | `/super-user` | ✅ Leads & Managers | ❌ None |
+| Team Lead | `TEAM_LEAD` | `/team-lead` | ✅ Team scope | CRUD Managers & Members |
+| Team Manager | `TEAM_MANAGER` | `/team-manager` | ✅ Team scope | ❌ None |
+| Team Member | `TEAM_MEMBER` | `/team-member` | ✅ Team scope | ❌ None |
+
+---
+
+## Permission Matrix
+
+Full matrix: [docs/PERMISSIONS.md](docs/PERMISSIONS.md)
+
+### User Creation
+| Creator | Can Create |
+|---------|------------|
+| ADMIN | SUPER_USER, TEAM_LEAD |
+| TEAM_LEAD | TEAM_MANAGER, TEAM_MEMBER |
+| All others | None |
+
+### Chat (simplified)
+| From | Can Message |
+|------|-------------|
+| ADMIN | Nobody |
+| SUPER_USER | Team Leads, Team Managers |
+| TEAM_LEAD | Super User, other Leads, own team |
+| TEAM_MANAGER | Super User, own Lead, own team |
+| TEAM_MEMBER | Super User, own Lead/Manager, own team |
+
+---
+
+## Installation Guide
+
+### 1. Clone repository
+```bash
+git clone <repository-url> TrustBridge
 cd TrustBridge
 ```
 
-### Step 2: Install Backend Dependencies
-
+### 2. Install backend
 ```bash
 cd backend
 npm install
+npx prisma generate
+npm run seed
 ```
 
-**What this does:** Installs all required packages for the backend server including Express, Socket.io, Prisma, JWT, bcrypt, and multer.
-
-### Step 3: Install Frontend Dependencies
-
+### 3. Install frontend
 ```bash
 cd ../frontend
 npm install
 ```
 
-**What this does:** Installs all required packages for the frontend including Next.js, React, TypeScript, and Socket.io client.
+### 4. Configure environment (see below)
 
-### Step 4: Setup Database
-
-```bash
-cd ../backend
-
-# Run Prisma migrations to create database tables
-npx prisma migrate dev --name init
-
-# Generate Prisma Client for database operations
-npx prisma generate
-
-# Seed the database with test users
-npx prisma db seed
-```
-
-**What this does:** Creates SQLite database with tables for Users, Messages, Teams, and Files. Seeds 5 test users with different roles.
-
-### Step 5: Create Backend Environment File
-
-```bash
-cd ~/Desktop/TrustBridge/backend
-
-cat > .env << 'EOF'
-# Server Configuration
-PORT=5000
-NODE_ENV=development
-
-# Security - CHANGE THESE IN PRODUCTION!
-JWT_SECRET=TrustBridge_Super_Secret_Key_2026_Change_This
-JWT_EXPIRE=7d
-ENCRYPTION_KEY=TrustBridge_AES256_Key_32Bytes_12345
-
-# Database
-DATABASE_URL="sqlite:./dev.db"
-
-# CORS - Use your server's LAN IP
-CLIENT_URL=http://localhost:3000
-
-# File Upload (No size limit)
-MAX_FILE_SIZE=10737418240
-UPLOAD_DIR=./uploads
-
-# Session
-SESSION_TIMEOUT=3600
-EOF
-```
-
-**What this does:** Configures the backend with port, security keys, and database settings.
-
-### Step 6: Create Frontend Environment File
-
-```bash
-cd ~/Desktop/TrustBridge/frontend
-
-cat > .env.local << 'EOF'
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-NEXT_PUBLIC_WEBSOCKET_URL=http://localhost:5000
-EOF
-```
-
-**What this does:** Configures the frontend to connect to the backend API and WebSocket.
+### 5. Start services (see Running Full Stack)
 
 ---
 
-## 🌐 LAN Deployment Guide
-
-### Step 1: Find Your Server IP Address
-
-**On Linux/Mac:**
-```bash
-ip addr show
-# or
-ifconfig
-# Look for "inet" address (e.g., 192.168.1.100)
-```
-
-**On Windows:**
-```cmd
-ipconfig
-# Look for "IPv4 Address" (e.g., 192.168.1.100)
-```
-
-**On macOS:**
-```bash
-ifconfig | grep inet
-# Look for inet 192.168.x.x
-```
-
-**What this does:** Finds your server's local network IP address so other machines can connect.
-
-### Step 2: Update Backend Configuration for LAN
+## Local Development
 
 ```bash
-cd ~/Desktop/TrustBridge/backend
-
-cat > .env << 'EOF'
-# Server Configuration
-PORT=5000
-NODE_ENV=production
-
-# Security - CHANGE THESE!
-JWT_SECRET=your_super_secret_key_here_min_32_chars
-JWT_EXPIRE=7d
-ENCRYPTION_KEY=your_32_byte_aes_key_here
-
-# IMPORTANT: Set to your server's LAN IP
-CLIENT_URL=http://YOUR_SERVER_IP:3000
-
-# Database
-DATABASE_URL="sqlite:./dev.db"
-
-# File Upload (No size limit)
-MAX_FILE_SIZE=10737418240
-UPLOAD_DIR=./uploads
-
-# Session
-SESSION_TIMEOUT=3600
-EOF
-```
-
-**What this does:** Updates backend to accept connections from other machines on the network.
-
-### Step 3: Update Frontend Configuration for LAN
-
-```bash
-cd ~/Desktop/TrustBridge/frontend
-
-cat > .env.local << 'EOF'
-# IMPORTANT: Use your server's LAN IP address
-NEXT_PUBLIC_API_URL=http://YOUR_SERVER_IP:5000/api
-NEXT_PUBLIC_WEBSOCKET_URL=http://YOUR_SERVER_IP:5000
-EOF
-```
-
-**What this does:** Tells the frontend to connect to the backend at the server's LAN IP.
-
-### Step 4: Configure Next.js for LAN Access
-
-```bash
-cd ~/Desktop/TrustBridge/frontend
-
-cat > next.config.js << 'EOF'
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-}
-
-module.exports = nextConfig
-EOF
-```
-
-**What this does:** Configures Next.js to allow connections from any IP on the network.
-
-### Step 5: Create Uploads Directory
-
-```bash
-cd ~/Desktop/TrustBridge/backend
-mkdir -p uploads
-chmod 755 uploads
-```
-
-**What this does:** Creates the directory where encrypted files will be stored.
-
-### Step 6: Configure Firewall
-
-**Ubuntu/Debian (UFW):**
-```bash
-sudo ufw allow 5000/tcp
-sudo ufw allow 3000/tcp
-sudo ufw enable
-sudo ufw status
-```
-
-**CentOS/RHEL (firewalld):**
-```bash
-sudo firewall-cmd --permanent --add-port=5000/tcp
-sudo firewall-cmd --permanent --add-port=3000/tcp
-sudo firewall-cmd --reload
-sudo firewall-cmd --list-ports
-```
-
-**What this does:** Opens ports 5000 (backend) and 3000 (frontend) for network access.
-
-### Step 7: Start the Backend Server
-
-**In Terminal 1:**
-```bash
-cd ~/Desktop/TrustBridge/backend
-npm run dev
-```
-
-You should see:
-```
-🚀 TrustBridge Server Started
-📡 Server running on: http://localhost:5000
-💬 WebSocket: Enabled
-✅ Ready for connections
-```
-
-### Step 8: Start the Frontend Server
-
-**In Terminal 2:**
-```bash
-cd ~/Desktop/TrustBridge/frontend
-npm run dev -- -H 0.0.0.0
-```
-
-You should see:
-```
-▲ Next.js 14.2.35
-- Local:        http://localhost:3000
-- Network:      http://YOUR_SERVER_IP:3000
-✓ Ready
-```
-
-### Step 9: Test the Application
-
-1. **On the server machine**, open browser: `http://localhost:3000`
-2. **On any other machine on the LAN**, open: `http://YOUR_SERVER_IP:3000`
-
----
-
-## 📋 What to Share with Team Members
-
-### Email Template to Send to Team:
-
-```
-Subject: 🔐 TrustBridge - Secure LAN Communication System Access
-
-Dear Team,
-
-We have deployed TrustBridge for secure internal communication on our LAN.
-
-📌 Access Details:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌐 URL: http://YOUR_SERVER_IP:3000
-📱 Access: Any web browser (Chrome, Firefox, Edge, Safari)
-🔒 Security: AES-GCM Encrypted
-🌍 Internet: NOT required (LAN only)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔑 Test Credentials:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Role           | Email                    | Password
-Admin          | admin@company.com        | admin123
-Super User     | superuser@company.com    | admin123
-Team Lead      | teamlead@company.com     | admin123
-Team Manager   | teammanager@company.com  | admin123
-Team Member    | teammember@company.com   | admin123
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💬 Features Available:
-✅ Real-time chat with team members
-✅ File sharing (any file type, any size)
-✅ Multiple file selection at once
-✅ AES-GCM encryption
-✅ Offline message delivery
-✅ Role-based access control
-
-🔐 Security Features:
-✅ Zero Trust Architecture
-✅ End-to-end encryption
-✅ JWT authentication
-✅ No internet required
-
-📚 Full Documentation:
-https://github.com/azharhussaincs/TrustBridge
-
-For any issues, please contact the IT team.
-
-Regards,
-IT Team
-```
-
-### Quick Reference Card (Print & Distribute):
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    🔐 TRUSTBRIDGE                           │
-│                Secure LAN Communication                     │
-│                                                             │
-│  🌐 URL: http://YOUR_SERVER_IP:3000                        │
-│                                                             │
-│  🔑 Default Credentials:                                    │
-│     admin@company.com / admin123                            │
-│                                                             │
-│  📱 Features:                                               │
-│     💬 Real-time Chat                                       │
-│     📎 File Sharing (Any Type/Size)                         │
-│     🔐 AES-GCM Encryption                                   │
-│     📨 Offline Messages                                     │
-│                                                             │
-│  🔒 No Internet Required - LAN Only                         │
-│                                                             │
-│  📞 IT Support: [Phone Number]                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔐 User Credentials (Default)
-
-| Role | Email | Password | Permissions |
-|------|-------|----------|-------------|
-| **Admin** | admin@company.com | admin123 | Full system management |
-| **Super User** | superuser@company.com | admin123 | Company owner, receives updates |
-| **Team Lead** | teamlead@company.com | admin123 | Manage team, chat with team |
-| **Team Manager** | teammanager@company.com | admin123 | Manage team members |
-| **Team Member** | teammember@company.com | admin123 | Basic chat and file sharing |
-
----
-
-## 🧪 Testing the Application
-
-### Test 1: Backend Health Check
-```bash
-curl http://YOUR_SERVER_IP:5000/api/health
-```
-
-**Expected Response:**
-```json
-{
-  "status": "✅ Server is running",
-  "timestamp": "2026-06-21T17:45:10.290Z",
-  "encryption": "AES-GCM",
-  "security": "Zero Trust Architecture",
-  "version": "1.0.0"
-}
-```
-
-### Test 2: Login API
-```bash
-curl -X POST http://YOUR_SERVER_IP:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@company.com","password":"admin123"}'
-```
-
-### Test 3: Browser Access Test
-
-1. Open browser: `http://YOUR_SERVER_IP:3000`
-2. Login with test credentials
-3. Navigate to Chat
-4. Select a user and start chatting
-5. Click "📎 Choose Files" and select a file
-6. Click "Send All" to share files
-
-### Test 4: Offline Message Test
-
-1. User A logs in and sends a message to User B
-2. User B logs out (close browser)
-3. User A sends another message
-4. User B logs in again
-5. Message should be delivered with green badge
-
-### Test 5: Multiple File Sharing Test
-
-1. Select a user in chat
-2. Click "📎 Choose Files" button
-3. Select multiple files (Ctrl+Click or Shift+Click)
-4. Click "Send All"
-5. All files are sent with individual progress
-
----
-
-## 📡 Ports and Firewall
-
-### Ports Used
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| **Backend** | 5000 | REST API + WebSocket |
-| **Frontend** | 3000 | Web UI |
-
-### Configure Firewall
-
-**Ubuntu/Debian (UFW):**
-```bash
-sudo ufw allow 5000/tcp
-sudo ufw allow 3000/tcp
-sudo ufw enable
-sudo ufw status
-```
-
-**CentOS/RHEL (firewalld):**
-```bash
-sudo firewall-cmd --permanent --add-port=5000/tcp
-sudo firewall-cmd --permanent --add-port=3000/tcp
-sudo firewall-cmd --reload
-sudo firewall-cmd --list-ports
-```
-
-**Windows Firewall:**
-1. Open Windows Defender Firewall
-2. Click "Advanced Settings"
-3. Click "Inbound Rules"
-4. Click "New Rule"
-5. Select "Port" and click Next
-6. Enter 5000 and 3000
-7. Allow the connection
-8. Name the rule "TrustBridge"
-9. Click Finish
-
----
-
-## 🔧 Troubleshooting
-
-### Issue 1: "Connection refused" on other machines
-
-**Symptoms:** Cannot access `http://YOUR_SERVER_IP:3000` from other machines
-
-**Solutions:**
-1. Check server IP: `ip addr show | grep inet`
-2. Verify backend: `curl http://YOUR_SERVER_IP:5000/api/health`
-3. Check firewall: `sudo ufw status`
-4. Verify CORS in `.env`:
-   ```env
-   CLIENT_URL=http://YOUR_SERVER_IP:3000
-   ```
-
-### Issue 2: Frontend not accessible from other machines
-Step 3: Get Your Server IP
-bash
-# Get your IP
-SERVER_IP=$(ip addr show | grep "inet " | grep -v 127.0.0.1 | grep -v docker | head -1 | awk '{print $2}' | cut -d/ -f1)
-echo "Your Server IP: $SERVER_IP"
-
-
-**Symptoms:** Cannot access frontend from other machines
-
-**Solutions:**
-1. Start with host binding: `npm run dev -- -H 0.0.0.0`
-2. Check port: `sudo netstat -tlnp | grep 3000`
-3. Verify `.env.local` has correct IP
-
-### Issue 3: WebSocket connection failing
-
-**Symptoms:** "● Offline" status in chat
-
-**Solutions:**
-1. Check WebSocket URL: `NEXT_PUBLIC_WEBSOCKET_URL=http://YOUR_SERVER_IP:5000`
-2. Verify port 5000 is accessible: `telnet YOUR_SERVER_IP 5000`
-3. Check backend logs for "🔌 New client connected" messages
-
-### Issue 4: File upload failing
-
-**Symptoms:** "Upload failed" error
-
-**Solutions:**
-1. Create uploads directory: `mkdir -p backend/uploads && chmod 755 backend/uploads`
-2. Check disk space: `df -h`
-3. Verify file size limit in `.env`
-
-### Issue 5: Database errors
-
-**Symptoms:** "Cannot find module '@prisma/client'"
-
-**Solutions:**
-1. Regenerate Prisma Client: `cd backend && npx prisma generate`
-2. Run migrations: `npx prisma migrate dev --name fix`
-3. Reset database: `npx prisma migrate reset && npx prisma db seed`
-
----
-
-## 🛡️ Security Features
-
-### Zero Trust Implementation
-- ✅ Every request requires JWT authentication
-- ✅ Role-based access control for all actions
-- ✅ No trust by default, even on LAN
-- ✅ Continuous verification of all requests
-
-### AES-GCM Encryption
-- ✅ All messages encrypted before sending
-- ✅ All files encrypted before storage
-- ✅ Unique IV per message/file
-- ✅ AuthTag for integrity verification
-
-### File Security
-- ✅ Files encrypted with AES-GCM before storage
-- ✅ Stored with separate .iv and .tag files
-- ✅ Only authorized users can decrypt
-- ✅ Any file type supported
-- ✅ Multiple file selection supported
-
-### User Security
-- ✅ Passwords hashed with bcrypt
-- ✅ JWT tokens with expiration
-- ✅ Session timeout after inactivity
-- ✅ Clear cache on logout
-
----
-
-## 🚀 Quick Start Commands
-
-### Clone and Setup
-```bash
-# Clone the repository
-git clone https://github.com/azharhussaincs/TrustBridge.git
-cd TrustBridge
-
-# Install dependencies
-cd backend && npm install
-cd ../frontend && npm install
-
-# Setup database
-cd ../backend
-npx prisma migrate dev --name init
-npx prisma generate
-npx prisma db seed
-```
-
-### Start Application
-```bash
-# Terminal 1 - Backend
+# Backend
 cd backend && npm run dev
 
-# Terminal 2 - Frontend (replace IP with your server IP)
-cd frontend && npm run dev -- -H 0.0.0.0
+# Frontend (separate terminal)
+cd frontend && npm run dev:clean
 ```
 
-### Create LAN Start Script
+Open http://localhost:3000/login
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+| Variable | Required | Example | Description |
+|----------|----------|---------|-------------|
+| `PORT` | No | `5000` | API port |
+| `JWT_SECRET` | **Yes** | random string | JWT signing key |
+| `JWT_EXPIRE` | No | `7d` | Token lifetime |
+| `ENCRYPTION_KEY` | **Yes** | 32+ chars | AES-256-GCM key |
+| `DATABASE_URL` | No | `sqlite:./dev.db` | Prisma connection |
+| `CLIENT_URL` | No | `http://IP:3000` | CORS reference |
+| `MAX_FILE_SIZE` | No | `10737418240` | Max upload bytes |
+| `UPLOAD_DIR` | No | `./uploads` | File storage path |
+
+### Frontend (`frontend/.env.local`)
+| Variable | Required | Example | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | **Yes** | `http://192.168.1.10:5000/api` | REST API base |
+| `NEXT_PUBLIC_WEBSOCKET_URL` | **Yes** | `http://192.168.1.10:5000` | Socket.io origin |
+| `NEXT_PUBLIC_SERVER_IP` | No | `192.168.1.10` | LAN discovery helper |
+
+> **Important:** Use your server's **LAN IP**, not `localhost`, when accessing from other devices.
+
+---
+
+## Running Backend
+
 ```bash
-cat > start-lan.sh << 'EOF'
-#!/bin/bash
-echo "🚀 Starting TrustBridge for LAN..."
-SERVER_IP=$(hostname -I | awk '{print $1}')
-echo "🌐 Server IP: $SERVER_IP"
-cd backend && npm run dev &
-cd ../frontend && npm run dev -- -H 0.0.0.0 &
-echo "✅ Running at: http://$SERVER_IP:3000"
-wait
-EOF
-chmod +x start-lan.sh
-./start-lan.sh
+cd backend
+
+# Development (auto-restart)
+npm run dev
+
+# Production
+npm start
+```
+
+Health check:
+```bash
+curl http://localhost:5000/api/health
 ```
 
 ---
 
-## 📊 Deployment Checklist
+## Running Frontend
 
-### Before Going Live
-- [ ] Change all default passwords
-- [ ] Update JWT_SECRET with strong key
-- [ ] Update ENCRYPTION_KEY with strong key
-- [ ] Configure firewall properly
-- [ ] Create admin user manually
-- [ ] Test all features
-- [ ] Document server IP address
-- [ ] Share access with team
+```bash
+cd frontend
 
-### Server Requirements
-- [ ] Node.js v20+ installed
-- [ ] npm v10+ installed
-- [ ] Ports 5000 and 3000 open
-- [ ] Firewall configured
-- [ ] Uploads directory created and writable
-- [ ] Enough disk space for files
+# Development (clears .next cache)
+npm run dev:clean
 
-### Team Member Requirements
-- [ ] Web browser (Chrome/Firefox/Edge/Safari)
-- [ ] Network access to server IP
-- [ ] Credentials provided
-- [ ] No installation needed
-
----
-
-## 🎯 Summary
-
-### What Team Members Need:
-- ✅ Web browser
-- ✅ Network access to the server IP
-- ✅ Credentials provided
-- ❌ No installation needed
-- ❌ No internet required
-
-### What Server Needs:
-- ✅ Node.js installed
-- ✅ Ports 5000 and 3000 open
-- ✅ Static IP address recommended
-- ✅ Sufficient disk space
-
-### Access URL Format:
-```
-http://YOUR_SERVER_IP:3000
-```
-
-### Example:
-```
-http://192.168.1.100:3000
+# Production
+npm run build
+npm start -- -H 0.0.0.0 -p 3000
 ```
 
 ---
 
-## 📌 Important Notes
+## Running Full Stack
 
-1. **No Internet Required**: The system works 100% offline on LAN
-2. **Any File Type**: Supports images, videos, documents, executables, etc.
-3. **Multiple Files**: Select and send multiple files at once
-4. **File Size**: No practical limit (tested up to 10GB)
-5. **Security**: All data is encrypted with AES-GCM
-6. **Roles**: 5 distinct roles with specific permissions
-7. **Testing**: Use the provided test credentials
-8. **LAN Only**: This is designed for local network use only
-9. **Offline**: All features work without internet
+```bash
+# Terminal 1
+cd ~/Desktop/TrustBridge/backend && npm run dev
+
+# Terminal 2
+cd ~/Desktop/TrustBridge/frontend && npm run dev:clean
+```
+
+**Demo accounts** (password: `admin123` for all):
+
+| Username | Role |
+|----------|------|
+| `admin` | ADMIN |
+| `superuser` | SUPER_USER |
+| `teamlead` | TEAM_LEAD |
+| `teammanager` | TEAM_MANAGER |
+| `teammember` | TEAM_MEMBER |
 
 ---
 
-## 📊 Status
+## Testing
+
+### Manual verification reports
+- [docs/RUN_VERIFICATION.md](docs/RUN_VERIFICATION.md)
+- [docs/BROWSER_TEST_REPORT.md](docs/BROWSER_TEST_REPORT.md)
+- [docs/LOGIN_TEST_REPORT.md](docs/LOGIN_TEST_REPORT.md)
+
+### Quick API test
+```bash
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+### Automated tests
+```bash
+cd backend && npm test   # Not yet implemented — exits 1
+```
+
+---
+
+## LAN Deployment
+
+See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for full details.
+
+1. Find server IP: `hostname -I`
+2. Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WEBSOCKET_URL` to `http://<IP>:5000`
+3. Open firewall ports 3000 and 5000
+4. Clients browse to `http://<IP>:3000/login`
+
+---
+
+## Windows Deployment
+
+1. Install Node.js 20 LTS
+2. Clone repo to `C:\TrustBridge`
+3. Configure `frontend\.env.local` with your IPv4 from `ipconfig`
+4. Allow ports 3000/5000 in Windows Firewall
+5. Run `npm start` in backend and `npm run build && npm start` in frontend
+
+---
+
+## Ubuntu Deployment
+
+1. Install Node.js 20 via NodeSource
+2. Deploy to `/opt/TrustBridge`
+3. Create systemd service for backend
+4. Use PM2 or systemd for frontend
+5. Configure `ufw allow 3000,5000/tcp`
+
+Full guide: [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
+
+---
+
+## Docker Deployment
+
+Docker Compose template and Dockerfile examples are in [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md#10-docker-deployment).
+
+---
+
+## Docker Compose Deployment
+
+```bash
+# After creating docker-compose.yml per deployment guide
+docker compose up -d
+```
+
+---
+
+## NGINX Deployment
+
+Reverse proxy configuration for port 80/443 with WebSocket upgrade support — see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md#12-nginx-reverse-proxy).
+
+---
+
+## Production Deployment
+
+| Step | Action |
+|------|--------|
+| 1 | Generate strong `JWT_SECRET` and `ENCRYPTION_KEY` |
+| 2 | Change all demo passwords |
+| 3 | `npm run build` frontend |
+| 4 | Use PM2/systemd for process management |
+| 5 | Set up NGINX + TLS (optional) |
+| 6 | Configure daily backups |
+| 7 | Set `NODE_ENV=production` |
+
+---
+
+## Backup Strategy
+
+| Asset | Path | Frequency |
+|-------|------|-----------|
+| Database | `backend/prisma/dev.db` | Daily |
+| Files | `backend/uploads/` | Daily |
+| Secrets | `backend/.env` | On change (secure vault) |
+
+```bash
+cp backend/prisma/dev.db backup/dev.db.$(date +%Y%m%d)
+tar -czf backup/uploads.$(date +%Y%m%d).tar.gz backend/uploads/
+```
+
+---
+
+## Security Features
 
 | Feature | Status |
 |---------|--------|
-| Project Structure | ✅ Complete |
-| Backend Dependencies | ✅ Installed |
-| Frontend Dependencies | ✅ Installed |
-| Database Setup | ✅ Complete |
-| Authentication | ✅ Implemented |
-| Encryption (AES-GCM) | ✅ Implemented |
-| User Roles (5) | ✅ Implemented |
-| Real-time Chat | ✅ Implemented |
-| File Transfer | ✅ Implemented |
-| Multiple File Selection | ✅ Implemented |
-| Any File Type Support | ✅ Implemented |
-| Offline Messages | ✅ Implemented |
-| LAN Deployment | ✅ Ready |
-| Documentation | ✅ Complete |
+| bcrypt password hashing | ✅ |
+| JWT REST authentication | ✅ |
+| Socket JWT verification | ✅ |
+| Role-based chat RBAC | ✅ `canUsersChat()` |
+| AES-256-GCM file encryption | ✅ |
+| Admin cannot chat | ✅ |
+| CORS open for LAN | ✅ (by design) |
+| Rate limiting | ⚠️ Planned |
+| Audit log DB | ⚠️ Planned |
+| Message encryption at rest | ⚠️ Planned |
+
+Full audit: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
 
 ---
 
-**Made with ❤️ for secure LAN communication**
+## Troubleshooting
 
-🔐 **TrustBridge - Secure Your LAN Communication**
+| Problem | Solution |
+|---------|----------|
+| Chat shows offline | Check `NEXT_PUBLIC_WEBSOCKET_URL`; restart backend |
+| 500 on frontend pages | `rm -rf frontend/.next && npm run dev:clean` |
+| Login works, no users in chat | Verify backend running; check API URL |
+| Prisma client error | `npx prisma generate` + restart backend |
+| Port in use | `lsof -i :5000` and kill duplicate process |
+
+---
+
+## Common Errors
+
+### `Cannot find module './474.js'`
+Stale Next.js cache. Fix:
+```bash
+cd frontend && rm -rf .next && npm run dev:clean
+```
+
+### `EADDRINUSE :5000`
+Another backend instance is running:
+```bash
+kill $(lsof -t -i:5000)
+```
+
+### `Invalid credentials`
+Run seed: `cd backend && npm run seed`  
+Default password: `admin123`
+
+### Socket `Authentication required`
+Token missing or expired. Log out and log in again.
+
+### `Connection error` on login
+`NEXT_PUBLIC_API_URL` points to wrong IP. Update `.env.local` and restart frontend.
+
+---
+
+## API Overview
+
+**Base URL:** `http://<host>:5000/api`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/health` | Public | Server status |
+| POST | `/auth/login` | Public | Login, returns JWT |
+| GET | `/auth/verify` | Bearer | Validate token |
+| GET | `/users` | Bearer | List users |
+| POST | `/users` | Bearer + role | Create user |
+| PUT | `/users/:id` | Bearer + role | Update user |
+| DELETE | `/users/:id` | Bearer + role | Delete user |
+| POST | `/users/:id/reset-password` | Admin | Reset password |
+| GET | `/messages` | Bearer | Chat history |
+| GET | `/messages/unread/count` | Bearer | Unread summary |
+| POST | `/files/upload` | Bearer | Upload encrypted file |
+| GET | `/files/download/:id` | Bearer | Download decrypted file |
+
+**WebSocket events:** `register-user`, `private-message`, `typing`, `mark-read`, `get-unread-count`
+
+---
+
+## Future Roadmap
+
+| Phase | Items |
+|-------|-------|
+| **Wave B** | AuditLog, Notifications, rate limiting, account lock |
+| **Wave C** | Group chat, reactions, reply, search, message status enum |
+| **Wave D** | Chunk upload, file preview, LAN discovery UI, QR connect |
+| **Wave E** | Automated tests, Docker Compose, PostgreSQL migration |
+
+See [docs/PHASE0_IMPLEMENTATION_PLAN.md](docs/PHASE0_IMPLEMENTATION_PLAN.md)
+
+---
+
+## Contributing Guide
+
+1. **Audit first** — read `docs/SRS_COMPLIANCE_REPORT.md` before adding features
+2. **No breaking changes** — preserve API contracts and LAN compatibility
+3. **Small commits** — one concern per commit
+4. **Match conventions** — UPPER_SNAKE roles, existing module layout
+5. **Use theme tokens** — edit `src/lib/theme.ts` and `globals.css`, not hardcoded colors
+6. **Test manually** — login all 5 roles, send chat message, upload file
+7. **Document** — update README or `docs/` for deployment-impacting changes
+
+### Branch workflow
+```bash
+git checkout -b feature/your-feature
+# make changes
+npm run build   # frontend
+# test locally
+git commit -m "feat: description"
 ```
 
 ---
+
+## License
+
+Proprietary — All rights reserved. Unauthorized distribution prohibited.
+
+---
+
+## Quick Links
+
+| Document | Purpose |
+|----------|---------|
+| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | Full deployment scenarios |
+| [SRS Compliance](docs/SRS_COMPLIANCE_REPORT.md) | Requirement traceability |
+| [Security Audit](docs/SECURITY_AUDIT.md) | Security posture |
+| [Permissions](docs/PERMISSIONS.md) | RBAC matrix |
+| [Run Verification](docs/RUN_VERIFICATION.md) | Startup test results |
+
+---
+
+**TrustBridge** — Secure communication for your LAN. 🔐

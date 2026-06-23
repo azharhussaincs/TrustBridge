@@ -2,12 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { RoleHero } from '@/components/layout/RoleHero';
+import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
+import { SecurityStrip } from '@/components/layout/SecurityStrip';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Alert } from '@/components/ui/Alert';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useSocket } from '@/context/SocketContext';
+import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 
 export default function SuperUserDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { unreadCount } = useSocket();
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -17,58 +28,99 @@ export default function SuperUserDashboard() {
     }
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
-    
+
     if (userData.role !== 'SUPER_USER') {
       router.push('/dashboard');
       return;
     }
-    
+
     setLoading(false);
-  }, []);
+  }, [router]);
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
-      <div style={{ color: '#fbbf24' }}>Loading Super User Dashboard...</div>
-    </div>;
+    return (
+      <LoadingSpinner
+        fullScreen
+        message="Loading Executive Dashboard..."
+        className="bg-slate-950"
+      />
+    );
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#1a1a1a', color: '#f3f4f6' }}>
-      <nav style={{ backgroundColor: '#0f0f0f', borderBottom: '2px solid #fbbf24', padding: '0 20px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', height: '64px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>👑</span>
-            <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#fbbf24' }}>Super User Dashboard</h1>
-          </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <span style={{ color: '#fbbf24', fontSize: '14px' }}>👤 {user?.name}</span>
-            <button onClick={() => router.push('/chat')} style={{ padding: '8px 16px', backgroundColor: '#fbbf24', color: '#1a1a1a', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
-              💬 Chat
-            </button>
-            <button onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+    <div className="page-shell">
+      <Navbar
+        variant="super-user"
+        title={
+          <span className="flex items-center gap-2">
+            <span className="text-2xl">👑</span>
+            Executive Dashboard
+          </span>
+        }
+        subtitle={<span>Company Owner · {user?.name}</span>}
+      >
+        <Button
+          onClick={() => router.push('/chat')}
+          size="sm"
+          className="bg-amber-400 font-bold text-slate-900 hover:bg-amber-300 shadow-glow-amber"
+        >
+          💬 Secure Chat
+          <ChatNavBadge count={unreadCount} className="bg-red-600 text-white" />
+        </Button>
+        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
+          Home
+        </Button>
+        <Button
+          onClick={() => {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.dispatchEvent(new Event('auth-changed'));
+            router.push('/login');
+          }}
+          variant="danger"
+          size="sm"
+        >
+          Logout
+        </Button>
+      </Navbar>
 
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px' }}>
-        <div style={{ backgroundColor: '#2d2d2d', borderRadius: '8px', padding: '24px', marginBottom: '24px', borderLeft: '4px solid #fbbf24' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '600', color: '#fbbf24' }}>Welcome, {user?.name}! 👑</h2>
-          <p style={{ color: '#d1d5db', marginTop: '8px' }}>Role: <strong style={{ color: '#fbbf24' }}>SUPER USER</strong></p>
-          <p style={{ color: '#d1d5db' }}>You receive updates from Team Leads and Team Managers.</p>
-          <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#374151', borderRadius: '4px', fontSize: '14px', color: '#fbbf24' }}>
-            ⚠️ Note: As Super User, you can only communicate with Team Leads and Team Managers.
-          </div>
-        </div>
+      <PageContainer className="space-y-6">
+        <RoleHero role="SUPER_USER" name={user?.name} username={user?.username} dark />
 
-        <div style={{ backgroundColor: '#2d2d2d', borderRadius: '8px', padding: '24px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#fbbf24', marginBottom: '16px' }}>📨 Recent Updates</h3>
-          <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px 0' }}>
-            No updates yet. Updates from Team Leads and Managers will appear here.
-          </p>
+        <QuickActionGrid
+          actions={[
+            { href: '/chat', icon: '💬', title: 'Message Team Leads', description: 'Encrypted chat with department leads', accent: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
+            { href: '/chat', icon: '📋', title: 'Message Managers', description: 'Receive operational updates from managers', accent: 'bg-slate-800 text-amber-400 ring-1 ring-slate-700' },
+          ]}
+        />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card padding="lg">
+            <h3 className="heading-section">📨 Recent Updates</h3>
+            <p className="mt-1 text-sm text-card-muted">High-level updates from your organization</p>
+            <EmptyState
+              icon="📭"
+              title="No updates yet"
+              description="Messages from Team Leads and Managers will appear here."
+              className="py-10"
+            />
+          </Card>
+
+          <Card padding="lg">
+            <h3 className="heading-section">🔒 Access scope</h3>
+            <p className="mt-2 text-sm text-card-body">
+              As Super User you can <strong className="text-white">communicate</strong> with Team Leads and Team Managers only.
+              You cannot add, modify, or delete users.
+            </p>
+            <Alert variant="warning" className="mt-4">
+              Admin panel and user management are hidden from your role by design (SRS REQ-4.2).
+            </Alert>
+            <div className="mt-5">
+              <SecurityStrip variant="dark" className="justify-start" />
+            </div>
+          </Card>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

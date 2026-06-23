@@ -40,7 +40,7 @@ class UserService {
         where,
         select: {
           id: true,
-          email: true,
+          username: true,
           name: true,
           role: true,
           isOnline: true,
@@ -62,7 +62,7 @@ class UserService {
         where: { id },
         select: {
           id: true,
-          email: true,
+          username: true,
           name: true,
           role: true,
           isOnline: true,
@@ -78,7 +78,7 @@ class UserService {
   
   async createUser(userData, creatorRole) {
     try {
-      const { email, password, name, role, teamId } = userData;
+      const { username, password, name, role, teamId } = userData;
       
       const allowedRoles = CREATION_RULES[creatorRole]?.canCreate || [];
       if (!allowedRoles.includes(role)) {
@@ -86,7 +86,7 @@ class UserService {
       }
       
       const existingUser = await prisma.user.findUnique({
-        where: { email }
+        where: { username }
       });
       
       if (existingUser) {
@@ -97,7 +97,7 @@ class UserService {
       
       return await prisma.user.create({
         data: {
-          email,
+          username,
           password: hashedPassword,
           name,
           role,
@@ -160,7 +160,7 @@ class UserService {
         where: { role },
         select: {
           id: true,
-          email: true,
+          username: true,
           name: true,
           role: true,
           isOnline: true,
@@ -179,7 +179,7 @@ class UserService {
         where: { teamId },
         select: {
           id: true,
-          email: true,
+          username: true,
           name: true,
           role: true,
           isOnline: true,

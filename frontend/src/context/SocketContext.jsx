@@ -1,10 +1,26 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
+import { apiUrl, authHeaders } from '@/lib/api/config';
+import { getServerOrigin } from '@/lib/api/config';
 
 const SocketContext = createContext();
+
+async function fetchUnreadSummary(token) {
+  const response = await fetch(apiUrl('/messages/unread/count'), {
+    headers: authHeaders(token),
+  });
+  const data = await response.json();
+  if (data.success && data.data) {
+    return {
+      unreadCount: data.data.unreadCount ?? 0,
+      bySender: data.data.bySender ?? {},
+    };
+  }
+  return { unreadCount: 0, bySender: {} };
+}
 
 export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
@@ -13,23 +29,55 @@ export function SocketProvider({ children }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState({});
   const [messageStatus, setMessageStatus] = useState({});
+  const [typingUsers, setTypingUsers] = useState({});
+  const [authTick, setAuthTick] = useState(0);
+  const connectedAtRef = useRef(0);
+
+  const syncUnreadFromApi = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    try {
+      const summary = await fetchUnreadSummary(token);
+      setUnreadCount(summary.unreadCount);
+      setUnreadMessages(summary.bySender);
+    } catch (error) {
+      console.error('Failed to sync unread messages:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onAuthChange = () => setAuthTick((t) => t + 1);
+    window.addEventListener('auth-changed', onAuthChange);
+    window.addEventListener('storage', onAuthChange);
+    return () => {
+      window.removeEventListener('auth-changed', onAuthChange);
+      window.removeEventListener('storage', onAuthChange);
+    };
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     if (!token || !user.id) {
+      setSocket(null);
+      setIsConnected(false);
+      setUnreadCount(0);
+      setUnreadMessages({});
       return;
     }
 
-    const newSocket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://192.168.18.139:5000', {
-      auth: { token }
+    const newSocket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin(), {
+      auth: { token },
+      reconnection: true,
     });
 
     newSocket.on('connect', () => {
       console.log('✅ Socket connected');
+      connectedAtRef.current = Date.now();
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
+      syncUnreadFromApi();
       newSocket.emit('get-unread-count', user.id);
     });
 
@@ -39,89 +87,68 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('user-online', ({ userId }) => {
-      console.log('👤 User online:', userId);
-      setOnlineUsers(prev => {
-        if (!prev.includes(userId)) {
-          return [...prev, userId];
-        }
-        return prev;
-      });
+      setOnlineUsers((prev) => (prev.includes(userId) ? prev : [...prev, userId]));
     });
 
     newSocket.on('user-offline', ({ userId }) => {
-      console.log('👤 User offline:', userId);
-      setOnlineUsers(prev => prev.filter(id => id !== userId));
+      setOnlineUsers((prev) => prev.filter((id) => id !== userId));
     });
 
-    // Handle new messages with notification
     newSocket.on('new-message', (message) => {
-      console.log('📩 New message received:', message);
-      
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      // Update unread count
-      if (message.receiverId === user.id) {
-        setUnreadCount(prev => prev + 1);
-        setUnreadMessages(prev => ({
-          ...prev,
-          [message.senderId]: (prev[message.senderId] || 0) + 1
-        }));
-        
-        // Show toast notification
-        const senderName = message.sender?.name || 'Someone';
-        const content = message.content || '📎 File shared';
-        toast.success(`💬 ${senderName}: ${content.substring(0, 30)}${content.length > 30 ? '...' : ''}`);
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+      if (message.receiverId === currentUser.id) {
+        const msgTime = message.createdAt ? new Date(message.createdAt).getTime() : Date.now();
+        const isLiveMessage = msgTime >= connectedAtRef.current - 5000;
+
+        if (isLiveMessage) {
+          setUnreadCount((prev) => prev + 1);
+          setUnreadMessages((prev) => ({
+            ...prev,
+            [message.senderId]: (prev[message.senderId] || 0) + 1,
+          }));
+
+          const senderName = message.sender?.name || 'Someone';
+          const content = message.content || '📎 File shared';
+          const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
+          toast.success(`💬 ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`);
+        }
       }
-      
-      // Trigger event for chat page
+
       window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
     });
 
-    // Handle message sent confirmation
     newSocket.on('message-sent', (message) => {
-      console.log('✅ Message sent:', message);
-      setMessageStatus(prev => ({
-        ...prev,
-        [message.id]: 'sent'
-      }));
+      setMessageStatus((prev) => ({ ...prev, [message.id]: 'sent' }));
     });
 
-    // Handle message delivered (read)
-    newSocket.on('message-read', ({ messageId, receiverId }) => {
-      console.log('📖 Message read:', messageId);
-      setMessageStatus(prev => ({
-        ...prev,
-        [messageId]: 'read'
-      }));
+    newSocket.on('message-read', ({ messageId }) => {
+      setMessageStatus((prev) => ({ ...prev, [messageId]: 'read' }));
     });
 
-    // Handle message saved for offline
-    newSocket.on('message-saved', ({ messageId, receiverId, status }) => {
-      console.log('💾 Message saved for offline delivery:', messageId);
-      setMessageStatus(prev => ({
-        ...prev,
-        [messageId]: 'saved'
-      }));
+    newSocket.on('message-saved', ({ messageId }) => {
+      setMessageStatus((prev) => ({ ...prev, [messageId]: 'saved' }));
     });
 
-    // Handle unread count
-    newSocket.on('unread-count', ({ count }) => {
-      setUnreadCount(count);
+    newSocket.on('user-typing', ({ senderId, isTyping }) => {
+      setTypingUsers((prev) => ({ ...prev, [senderId]: isTyping }));
+    });
+
+    newSocket.on('unread-count', ({ count, bySender }) => {
+      if (typeof count === 'number') {
+        setUnreadCount(count);
+      }
+      if (bySender && typeof bySender === 'object') {
+        setUnreadMessages(bySender);
+      }
     });
 
     setSocket(newSocket);
 
-    // Get initial unread count
-    setTimeout(() => {
-      if (newSocket && user.id) {
-        newSocket.emit('get-unread-count', user.id);
-      }
-    }, 1000);
-
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, [authTick, syncUnreadFromApi]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     if (!socket) {
@@ -134,7 +161,7 @@ export function SocketProvider({ children }) {
       receiverId,
       content,
       isEncrypted,
-      fileId: fileId || null
+      fileId: fileId || null,
     });
   };
 
@@ -144,7 +171,7 @@ export function SocketProvider({ children }) {
     socket.emit('typing', {
       senderId: user.id,
       receiverId,
-      isTyping
+      isTyping,
     });
   };
 
@@ -153,12 +180,8 @@ export function SocketProvider({ children }) {
     socket.emit('mark-read', {
       messageId,
       senderId,
-      receiverId
+      receiverId,
     });
-    setUnreadMessages(prev => ({
-      ...prev,
-      [senderId]: 0
-    }));
   };
 
   const getUnreadCount = (userId) => {
@@ -167,27 +190,34 @@ export function SocketProvider({ children }) {
   };
 
   const clearUnreadForUser = (userId) => {
-    setUnreadMessages(prev => ({
-      ...prev,
-      [userId]: 0
-    }));
+    setUnreadMessages((prev) => {
+      const cleared = prev[userId] || 0;
+      if (cleared > 0) {
+        setUnreadCount((count) => Math.max(0, count - cleared));
+      }
+      return { ...prev, [userId]: 0 };
+    });
   };
 
   return (
-    <SocketContext.Provider value={{
-      socket,
-      isConnected,
-      onlineUsers,
-      unreadCount,
-      unreadMessages,
-      messageStatus,
-      sendMessage,
-      sendTyping,
-      markAsRead,
-      getUnreadCount,
-      clearUnreadForUser,
-      setUnreadCount
-    }}>
+    <SocketContext.Provider
+      value={{
+        socket,
+        isConnected,
+        onlineUsers,
+        unreadCount,
+        unreadMessages,
+        messageStatus,
+        typingUsers,
+        sendMessage,
+        sendTyping,
+        markAsRead,
+        getUnreadCount,
+        clearUnreadForUser,
+        setUnreadCount,
+        syncUnreadFromApi,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );

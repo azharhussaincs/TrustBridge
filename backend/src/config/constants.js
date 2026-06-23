@@ -1,10 +1,10 @@
-// User Roles
+// User Roles (UPPER_SNAKE — matches Prisma User.role)
 const ROLES = {
-  ADMIN: 'admin',
-  SUPER_USER: 'super-user',
-  TEAM_LEAD: 'team-lead',
-  TEAM_MANAGER: 'team-manager',
-  TEAM_MEMBER: 'team-member'
+  ADMIN: 'ADMIN',
+  SUPER_USER: 'SUPER_USER',
+  TEAM_LEAD: 'TEAM_LEAD',
+  TEAM_MANAGER: 'TEAM_MANAGER',
+  TEAM_MEMBER: 'TEAM_MEMBER'
 };
 
 // Role Hierarchy (for permission checking)
@@ -23,7 +23,7 @@ const COMMUNICATION_RULES = {
     hasAdminPanel: false
   },
   [ROLES.ADMIN]: {
-    canCommunicateWith: [ROLES.ADMIN, ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
+    canCommunicateWith: [],
     hasAdminPanel: true
   },
   [ROLES.TEAM_LEAD]: {

@@ -2,7 +2,9 @@ const app = require('./src/app');
 const http = require('http');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const { canUsersChat } = require('./src/services/permission.service');
 
 dotenv.config();
 
@@ -21,16 +23,35 @@ const io = new Server(server, {
 
 const connectedUsers = new Map();
 
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user) {
+      return next(new Error('User not found'));
+    }
+    socket.userId = user.id;
+    socket.user = user;
+    next();
+  } catch (error) {
+    next(new Error('Invalid or expired token'));
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log(`🔌 New client connected: ${socket.id}`);
+  console.log(`🔌 New client connected: ${socket.id} (user ${socket.userId})`);
 
   socket.on('register-user', async (userId) => {
-    if (userId) {
-      try {
-        // Check if user exists before updating
-        const existingUser = await prisma.user.findUnique({
-          where: { id: userId }
-        });
+    if (!userId || userId !== socket.userId) {
+      socket.emit('user-error', { message: 'Unauthorized user registration' });
+      return;
+    }
+    try {
+        const existingUser = socket.user;
         
         if (!existingUser) {
           console.log(`⚠️ User ${userId} not found in database`);
@@ -47,7 +68,6 @@ io.on('connection', (socket) => {
         console.log(`📊 Total connected users: ${connectedUsers.size}`);
         io.emit('user-online', { userId, online: true });
         
-        // Deliver offline messages
         const unreadMessages = await prisma.message.findMany({
           where: { receiverId: userId, read: false },
           orderBy: { createdAt: 'asc' }
@@ -57,29 +77,37 @@ io.on('connection', (socket) => {
           console.log(`📨 Delivering ${unreadMessages.length} offline messages`);
           for (const msg of unreadMessages) {
             socket.emit('new-message', msg);
-            await prisma.message.update({
-              where: { id: msg.id },
-              data: { read: true, readAt: new Date() }
-            });
           }
         }
-      } catch (error) {
+    } catch (error) {
         console.error('❌ Error registering user:', error.message);
-      }
     }
   });
 
   socket.on('private-message', async (data) => {
     try {
       const { senderId, receiverId, content, isEncrypted, fileId } = data;
+
+      if (senderId !== socket.userId) {
+        socket.emit('message-error', { error: 'Unauthorized sender' });
+        return;
+      }
       
-      // Check if sender exists
-      const sender = await prisma.user.findUnique({
-        where: { id: senderId }
-      });
-      
+      const sender = socket.user;
+      const receiver = await prisma.user.findUnique({ where: { id: receiverId } });
+
       if (!sender) {
         socket.emit('message-error', { error: 'Sender not found' });
+        return;
+      }
+
+      if (!receiver) {
+        socket.emit('message-error', { error: 'Receiver not found' });
+        return;
+      }
+
+      if (!canUsersChat(sender, receiver)) {
+        socket.emit('message-error', { error: 'You are not allowed to message this user' });
         return;
       }
       
@@ -96,10 +124,6 @@ io.on('connection', (socket) => {
       const receiverSocketId = connectedUsers.get(receiverId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('new-message', message);
-        await prisma.message.update({
-          where: { id: message.id },
-          data: { read: true, readAt: new Date() }
-        });
       } else {
         console.log(`💾 Message saved for offline user ${receiverId}`);
         socket.emit('message-saved', { 
@@ -117,6 +141,7 @@ io.on('connection', (socket) => {
 
   socket.on('typing', (data) => {
     const { senderId, receiverId, isTyping } = data;
+    if (senderId !== socket.userId) return;
     const receiverSocketId = connectedUsers.get(receiverId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('user-typing', { senderId, isTyping });
@@ -126,6 +151,7 @@ io.on('connection', (socket) => {
   socket.on('mark-read', async (data) => {
     try {
       const { messageId, senderId, receiverId } = data;
+      if (receiverId !== socket.userId) return;
       await prisma.message.update({
         where: { id: messageId },
         data: { read: true, readAt: new Date() }
@@ -140,11 +166,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('get-unread-count', async (userId) => {
+    if (userId !== socket.userId) return;
     try {
-      const count = await prisma.message.count({
-        where: { receiverId: userId, read: false }
+      const unread = await prisma.message.findMany({
+        where: { receiverId: userId, read: false },
+        select: { senderId: true }
       });
-      socket.emit('unread-count', { count });
+      const bySender = {};
+      unread.forEach((msg) => {
+        bySender[msg.senderId] = (bySender[msg.senderId] || 0) + 1;
+      });
+      socket.emit('unread-count', { count: unread.length, bySender });
     } catch (error) {
       console.error('❌ Error getting unread count:', error.message);
     }

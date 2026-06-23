@@ -2,21 +2,36 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { RoleHero } from '@/components/layout/RoleHero';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Alert } from '@/components/ui/Alert';
+import { Input } from '@/components/ui/Input';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/Badge';
+import { apiFetch, authHeaders } from '@/lib/api/config';
+import { useSocket } from '@/context/SocketContext';
+import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 
 export default function TeamLeadDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const { unreadCount } = useSocket();
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teamManagers, setTeamManagers] = useState<any[]>([]);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
   const [showAddManagerForm, setShowAddManagerForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    username: '',
     password: '',
     role: 'TEAM_MEMBER'
   });
-  const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
@@ -33,14 +48,16 @@ export default function TeamLeadDashboard() {
       return;
     }
     
+    setAuthReady(true);
     fetchTeamData(token);
-    setLoading(false);
-  }, []);
+  }, [router]);
 
   const fetchTeamData = async (token: string) => {
+    setDataLoading(true);
+    setFetchError('');
     try {
-      const response = await fetch('http://localhost:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await apiFetch('/users', {
+        headers: authHeaders(token),
       });
       const data = await response.json();
       if (data.success) {
@@ -51,7 +68,11 @@ export default function TeamLeadDashboard() {
         setTeamManagers(managers);
       }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Error fetching team data';
+      setFetchError(msg);
       console.error('Error fetching team data:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -63,12 +84,9 @@ export default function TeamLeadDashboard() {
     if (!token) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/users', {
+      const response = await apiFetch('/users', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders(token, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(formData)
       });
       
@@ -76,7 +94,7 @@ export default function TeamLeadDashboard() {
       
       if (data.success) {
         setMessage({ type: 'success', text: `✅ ${formData.name} (${formData.role}) added successfully!` });
-        setFormData({ name: '', email: '', password: '', role: 'TEAM_MEMBER' });
+        setFormData({ name: '', username: '', password: '', role: 'TEAM_MEMBER' });
         setShowAddMemberForm(false);
         setShowAddManagerForm(false);
         fetchTeamData(token);
@@ -95,9 +113,9 @@ export default function TeamLeadDashboard() {
     if (!token) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await apiFetch(`/users/${userId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: authHeaders(token),
       });
       
       const data = await response.json();
@@ -112,230 +130,220 @@ export default function TeamLeadDashboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0fdf4' }}>
-        <div style={{ color: '#065f46' }}>Loading Team Lead Dashboard...</div>
-      </div>
-    );
+  if (!authReady) {
+    return <LoadingSpinner fullScreen message="Checking access..." />;
   }
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f0fdf4', color: '#064e3b' }}>
-      <nav style={{ backgroundColor: '#065f46', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', padding: '0 20px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', height: '64px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>🌿</span>
-            <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#f0fdf4' }}>Team Lead Panel</h1>
-          </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <span style={{ color: '#a7f3d0', fontSize: '14px' }}>👤 {user?.name}</span>
-            <button onClick={() => router.push('/chat')} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              💬 Chat
-            </button>
-            <button onClick={() => router.push('/dashboard')} style={{ padding: '8px 16px', backgroundColor: '#6b7280', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Dashboard
-            </button>
-            <button onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+  const renderUserTable = (
+    users: any[],
+    emptyMessage: string,
+    _roleBadgeClass: string,
+    loading: boolean
+  ) => (
+    <div className="table-wrap">
+      <table className="table-dark">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-12 text-center">
+                <LoadingSpinner message="Loading team..." size="sm" />
+              </td>
+            </tr>
+          ) : users.length === 0 ? (
+            <tr>
+              <td colSpan={4}>
+                <EmptyState icon="👥" title={emptyMessage} className="py-8" />
+              </td>
+            </tr>
+          ) : (
+            users.map((member) => (
+              <tr key={member.id}>
+                <td>{member.name}</td>
+                <td className="text-card-muted">{member.username}</td>
+                <td>
+                  <Badge variant="role" role={member.role}>{member.role}</Badge>
+                </td>
+                <td>
+                  <Button
+                    onClick={() => handleDeleteUser(member.id, member.name)}
+                    variant="danger"
+                    size="sm"
+                    className="text-xs"
+                  >
+                    Remove
+                  </Button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px' }}>
-        {message && (
-          <div style={{
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-            color: message.type === 'success' ? '#166534' : '#991b1b'
-          }}>
-            {message.text}
-          </div>
+  const renderAddForm = (submitLabel: string) => (
+    <form onSubmit={handleAddUser} className="panel-light mb-4 animate-slide-up">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Input
+          label="Name"
+          type="text"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+          placeholder="John Doe"
+          className="input-light"
+        />
+        <Input
+          label="Username"
+          type="text"
+          value={formData.username}
+          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+          required
+          placeholder="johndoe"
+          className="input-light"
+        />
+        <Input
+          label="Password"
+          type="password"
+          value={formData.password}
+          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+          required
+          placeholder="••••••••"
+          className="input-light"
+        />
+      </div>
+      <Button type="submit" variant="success" className="mt-4">
+        {submitLabel}
+      </Button>
+    </form>
+  );
+
+  return (
+    <div className="page-shell">
+      <Navbar
+        variant="team-lead"
+        title={
+          <span className="flex items-center gap-2">
+            <span className="text-2xl">🌿</span>
+            Team Lead Panel
+          </span>
+        }
+        subtitle={<span>👤 {user?.name}</span>}
+      >
+        <Button onClick={() => router.push('/chat')} size="sm" className="bg-emerald-500 hover:bg-emerald-600">
+          💬 Chat
+          <ChatNavBadge count={unreadCount} />
+        </Button>
+        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
+          Dashboard
+        </Button>
+        <Button
+          onClick={() => {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.dispatchEvent(new Event('auth-changed'));
+            router.push('/login');
+          }}
+          variant="danger"
+          size="sm"
+        >
+          Logout
+        </Button>
+      </Navbar>
+
+      <PageContainer className="space-y-6">
+        <RoleHero role="TEAM_LEAD" name={user?.name} username={user?.username} />
+
+        {fetchError && (
+          <Alert variant="error" className="mb-4">
+            {fetchError}
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                const token = localStorage.getItem('auth_token');
+                if (token) fetchTeamData(token);
+              }}
+            >
+              Retry
+            </Button>
+          </Alert>
         )}
 
-        {/* Info Banner - Team Lead can add Team Members and Team Managers */}
-        <div style={{
-          backgroundColor: '#d1fae5',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          border: '1px solid #6ee7b7'
-        }}>
-          <p style={{ color: '#065f46', fontSize: '14px' }}>
-            ✅ <strong>Team Lead Permissions:</strong> You can add <strong>Team Members</strong> and <strong>Team Managers</strong> for your team.
-          </p>
-        </div>
+        {message && (
+          <Alert variant={message.type === 'success' ? 'success' : 'error'} className="mb-4">
+            {message.text}
+          </Alert>
+        )}
 
-        <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#065f46', marginBottom: '8px' }}>👥 Team Management</h2>
-          <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-            Manage your team members and managers.
-          </p>
+        <Alert variant="info" className="mb-4">
+          <strong>Team Lead Permissions:</strong> You can add <strong>Team Members</strong> and <strong>Team Managers</strong> for your team.
+        </Alert>
 
-          {/* Team Members */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', marginBottom: '12px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#065f46' }}>
-              Team Members ({teamMembers.length})
-            </h3>
-            <button
-              onClick={() => {
-                setShowAddMemberForm(!showAddMemberForm);
-                setShowAddManagerForm(false);
-                if (!showAddMemberForm) {
-                  setFormData({ ...formData, role: 'TEAM_MEMBER' });
-                }
-              }}
-              style={{
-                padding: '6px 14px',
-                backgroundColor: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              {showAddMemberForm ? '❌ Cancel' : '➕ Add Team Member'}
-            </button>
+        <Card>
+          <CardHeader
+            title="👥 Team Management"
+            description="Manage your team members and managers."
+          />
+
+          <div className="mb-6">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="heading-section">
+                Team Members ({teamMembers.length})
+              </h3>
+              <Button
+                onClick={() => {
+                  setShowAddMemberForm(!showAddMemberForm);
+                  setShowAddManagerForm(false);
+                  if (!showAddMemberForm) {
+                    setFormData({ ...formData, role: 'TEAM_MEMBER' });
+                  }
+                }}
+                variant="success"
+                size="sm"
+              >
+                {showAddMemberForm ? '❌ Cancel' : '➕ Add Team Member'}
+              </Button>
+            </div>
+
+            {showAddMemberForm && renderAddForm('Add Team Member')}
+            {renderUserTable(teamMembers, 'No team members yet.', '', dataLoading)}
           </div>
 
-          {showAddMemberForm && (
-            <form onSubmit={handleAddUser} style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #a7f3d0' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Name</label>
-                  <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="John Doe" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Email</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="member@company.com" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Password</label>
-                  <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="••••••••" />
-                </div>
-              </div>
-              <button type="submit" style={{ marginTop: '12px', padding: '8px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                Add Team Member
-              </button>
-            </form>
-          )}
+          <div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="heading-section">
+                Team Managers ({teamManagers.length})
+              </h3>
+              <Button
+                onClick={() => {
+                  setShowAddManagerForm(!showAddManagerForm);
+                  setShowAddMemberForm(false);
+                  if (!showAddManagerForm) {
+                    setFormData({ ...formData, role: 'TEAM_MANAGER' });
+                  }
+                }}
+                variant="success"
+                size="sm"
+              >
+                {showAddManagerForm ? '❌ Cancel' : '➕ Add Team Manager'}
+              </Button>
+            </div>
 
-          <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f0fdf4', borderBottom: '2px solid #a7f3d0' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Email</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Role</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teamMembers.length === 0 ? (
-                  <tr><td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No team members yet.</td></tr>
-                ) : (
-                  teamMembers.map((member) => (
-                    <tr key={member.id} style={{ borderBottom: '1px solid #d1fae5' }}>
-                      <td style={{ padding: '12px' }}>{member.name}</td>
-                      <td style={{ padding: '12px' }}>{member.email}</td>
-                      <td style={{ padding: '12px' }}><span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', backgroundColor: '#d1fae5', color: '#065f46' }}>{member.role}</span></td>
-                      <td style={{ padding: '12px' }}>
-                        <button onClick={() => handleDeleteUser(member.id, member.name)} style={{ padding: '4px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {showAddManagerForm && renderAddForm('Add Team Manager')}
+            {renderUserTable(teamManagers, 'No team managers yet.', '', dataLoading)}
           </div>
-
-          {/* Team Managers */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#065f46' }}>
-              Team Managers ({teamManagers.length})
-            </h3>
-            <button
-              onClick={() => {
-                setShowAddManagerForm(!showAddManagerForm);
-                setShowAddMemberForm(false);
-                if (!showAddManagerForm) {
-                  setFormData({ ...formData, role: 'TEAM_MANAGER' });
-                }
-              }}
-              style={{
-                padding: '6px 14px',
-                backgroundColor: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              {showAddManagerForm ? '❌ Cancel' : '➕ Add Team Manager'}
-            </button>
-          </div>
-
-          {showAddManagerForm && (
-            <form onSubmit={handleAddUser} style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #a7f3d0' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Name</label>
-                  <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="Jane Smith" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Email</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="manager@company.com" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>Password</label>
-                  <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '8px 12px', border: '1px solid #a7f3d0', borderRadius: '4px', marginTop: '4px' }} placeholder="••••••••" />
-                </div>
-              </div>
-              <button type="submit" style={{ marginTop: '12px', padding: '8px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                Add Team Manager
-              </button>
-            </form>
-          )}
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f0fdf4', borderBottom: '2px solid #a7f3d0' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Email</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Role</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teamManagers.length === 0 ? (
-                  <tr><td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No team managers yet.</td></tr>
-                ) : (
-                  teamManagers.map((manager) => (
-                    <tr key={manager.id} style={{ borderBottom: '1px solid #d1fae5' }}>
-                      <td style={{ padding: '12px' }}>{manager.name}</td>
-                      <td style={{ padding: '12px' }}>{manager.email}</td>
-                      <td style={{ padding: '12px' }}><span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', backgroundColor: '#a7f3d0', color: '#065f46' }}>{manager.role}</span></td>
-                      <td style={{ padding: '12px' }}>
-                        <button onClick={() => handleDeleteUser(manager.id, manager.name)} style={{ padding: '4px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+        </Card>
+      </PageContainer>
     </div>
   );
 }

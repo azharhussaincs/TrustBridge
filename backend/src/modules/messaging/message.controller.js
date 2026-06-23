@@ -34,10 +34,10 @@ class MessageController {
 
   async getUnreadCount(req, res) {
     try {
-      const count = await messageService.getUnreadCount(req.user.id);
+      const summary = await messageService.getUnreadSummary(req.user.id);
       res.json({
         success: true,
-        data: { unreadCount: count }
+        data: summary
       });
     } catch (error) {
       res.status(400).json({

@@ -8,7 +8,9 @@ export const initializeSocket = (token, userId) => {
     return socket;
   }
 
-  socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:5000', {
+import { getServerOrigin } from './config';
+
+  socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin(), {
     auth: {
       token: token
     },

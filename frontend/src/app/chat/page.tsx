@@ -4,14 +4,25 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Alert } from '@/components/ui/Alert';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { getRoleLabel } from '@/lib/roles';
+import { cn } from '@/lib/utils';
+import { apiUrl } from '@/lib/api/config';
 
 interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
   role: string;
   teamId: string | null;
+  lastSeen?: string | null;
+  isOnline?: boolean;
 }
 
 interface Message {
@@ -24,12 +35,7 @@ interface Message {
   read: boolean;
 }
 
-// Role-based communication permissions - SRS Compliant
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
-  'ADMIN': {
-    canChatWith: ['ADMIN', 'SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with everyone (System Admin)'
-  },
   'SUPER_USER': {
     canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER'],
     description: 'Can only chat with Team Leads and Team Managers'
@@ -53,13 +59,16 @@ export default function ChatPage() {
   const { 
     onlineUsers, 
     sendMessage, 
+    sendTyping,
     isConnected, 
     unreadCount, 
     unreadMessages, 
     messageStatus = {},
+    typingUsers = {},
     markAsRead, 
     getUnreadCount, 
-    clearUnreadForUser 
+    clearUnreadForUser,
+    syncUnreadFromApi,
   } = useSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -71,6 +80,7 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showFileShare, setShowFileShare] = useState(false);
 
   useEffect(() => {
@@ -80,12 +90,19 @@ export default function ChatPage() {
       return;
     }
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    if (userData.role === 'ADMIN') {
+      router.push('/admin');
+      return;
+    }
     setCurrentUser(userData);
     
     if (userData.id) {
       fetchUsers(token, userData);
       if (getUnreadCount) {
         getUnreadCount(userData.id);
+      }
+      if (syncUnreadFromApi) {
+        syncUnreadFromApi();
       }
     }
     
@@ -132,7 +149,7 @@ export default function ChatPage() {
       setIsRefreshing(true);
       setError('');
       
-      const response = await fetch('http://192.168.18.139:5000/api/users', {
+      const response = await fetch(apiUrl('/users'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -197,7 +214,7 @@ export default function ChatPage() {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`http://192.168.18.139:5000/api/messages?userId=${userId}`, {
+      const response = await fetch(apiUrl(`/messages?userId=${userId}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -221,6 +238,27 @@ export default function ChatPage() {
     }
   };
 
+  const handleMessageInput = (value: string) => {
+    setMessage(value);
+    if (!selectedUser) return;
+    sendTyping(selectedUser.id, true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      sendTyping(selectedUser.id, false);
+    }, 2000);
+  };
+
+  const formatLastSeen = (lastSeen?: string | null) => {
+    if (!lastSeen) return 'Last seen unknown';
+    const date = new Date(lastSeen);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 60000) return 'Last seen just now';
+    if (diffMs < 3600000) return `Last seen ${Math.floor(diffMs / 60000)}m ago`;
+    if (diffMs < 86400000) return `Last seen ${Math.floor(diffMs / 3600000)}h ago`;
+    return `Last seen ${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || !selectedUser) return;
@@ -238,6 +276,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, newMessage]);
     
     sendMessage(selectedUser.id, message);
+    sendTyping(selectedUser.id, false);
     setMessage('');
     
     toast.success('✅ Message sent!');
@@ -262,7 +301,7 @@ export default function ChatPage() {
         return;
       }
 
-      const response = await fetch(`http://192.168.18.139:5000/api/files/download/${fileId}`, {
+      const response = await fetch(apiUrl(`/files/download/${fileId}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -284,7 +323,7 @@ export default function ChatPage() {
       window.URL.revokeObjectURL(url);
       toast.success(`✅ File "${filename}" downloaded!`);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download error:', error);
       toast.error(`Failed to download file: ${error.message}`);
     }
@@ -309,17 +348,14 @@ export default function ChatPage() {
   };
 
   const getMessageStatus = (msg: Message) => {
-    // For received messages, show read status if available
     if (msg.senderId !== currentUser?.id) {
       return msg.read ? ' ✓✓' : '';
     }
-    // For sent messages, check messageStatus
     if (messageStatus && messageStatus[msg.id]) {
       const status = messageStatus[msg.id];
       if (status === 'read') return ' ✓✓';
       if (status === 'sent') return ' ✓';
     }
-    // Default: show check mark if message is from current user
     if (msg.senderId === currentUser?.id) {
       return msg.read ? ' ✓✓' : ' ✓';
     }
@@ -327,34 +363,8 @@ export default function ChatPage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: '48px', 
-            height: '48px', 
-            border: '4px solid #2563eb', 
-            borderTop: '4px solid transparent', 
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto'
-          }}></div>
-          <p style={{ marginTop: '16px', color: '#6b7280' }}>Loading chat...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen message="Loading chat..." />;
   }
-
-  const getRoleDisplay = (role: string) => {
-    const roleMap: Record<string, string> = {
-      'ADMIN': 'Admin',
-      'SUPER_USER': 'Super User',
-      'TEAM_LEAD': 'Team Lead',
-      'TEAM_MANAGER': 'Team Manager',
-      'TEAM_MEMBER': 'Team Member'
-    };
-    return roleMap[role] || role;
-  };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -366,300 +376,184 @@ export default function ChatPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      <Toaster position="top-right" />
-      
-      <nav style={{ backgroundColor: 'white', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', height: '64px' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>
-                💬 TrustBridge Chat
-                {isConnected ? (
-                  <span style={{ fontSize: '12px', color: '#22c55e', marginLeft: '8px' }}>● Online</span>
-                ) : (
-                  <span style={{ fontSize: '12px', color: '#ef4444', marginLeft: '8px' }}>● Offline</span>
-                )}
-                {unreadCount > 0 && (
-                  <span style={{ 
-                    fontSize: '12px', 
-                    color: 'white', 
-                    backgroundColor: '#ef4444',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    marginLeft: '8px'
-                  }}>
-                    {unreadCount} new
-                  </span>
-                )}
-              </h1>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <button
-                onClick={() => {
-                  if (currentUser?.role === 'ADMIN') router.push('/admin');
-                  else if (currentUser?.role === 'SUPER_USER') router.push('/super-user');
-                  else if (currentUser?.role === 'TEAM_LEAD') router.push('/team-lead');
-                  else router.push('/dashboard');
-                }}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#6b7280',
-                  color: 'white',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('auth_token');
-                  localStorage.removeItem('user');
-                  toast.success('👋 Logged out');
-                  router.push('/login');
-                }}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#ef4444',
-                  color: 'white',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px' }}>
-        <div style={{ 
-          backgroundColor: '#fef3c7', 
-          padding: '12px 16px', 
-          borderRadius: '8px', 
-          marginBottom: '16px',
-          border: '1px solid #f59e0b'
-        }}>
-          <p style={{ color: '#92400e', fontSize: '14px' }}>
-            🔒 <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
-            {currentUser?.role === 'TEAM_MEMBER' && currentUser?.teamId && (
-              <span style={{ display: 'block', fontSize: '12px', marginTop: '4px' }}>
-                👥 You can chat with your Team Lead, Team Manager, and other Team Members from your team.
-              </span>
+    <div className="page-shell flex min-h-screen flex-col">
+      <Navbar
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            💬 TrustBridge Chat
+            {isConnected ? (
+              <span className="text-xs font-normal text-emerald-600">● Online</span>
+            ) : (
+              <span className="text-xs font-normal text-red-500">● Offline</span>
             )}
-          </p>
-          <p style={{ color: '#92400e', fontSize: '12px', marginTop: '4px' }}>
+            {unreadCount > 0 && (
+              <Badge variant="danger">{unreadCount} new</Badge>
+            )}
+          </span>
+        }
+      >
+        <Button
+          onClick={() => {
+            if (currentUser?.role === 'ADMIN') router.push('/admin');
+            else if (currentUser?.role === 'SUPER_USER') router.push('/super-user');
+            else if (currentUser?.role === 'TEAM_LEAD') router.push('/team-lead');
+            else if (currentUser?.role === 'TEAM_MANAGER') router.push('/team-manager');
+            else if (currentUser?.role === 'TEAM_MEMBER') router.push('/team-member');
+            else router.push('/dashboard');
+          }}
+          variant="secondary"
+          size="sm"
+        >
+          Dashboard
+        </Button>
+        <Button
+          onClick={() => {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.dispatchEvent(new Event('auth-changed'));
+            toast.success('👋 Logged out');
+            router.push('/login');
+          }}
+          variant="danger"
+          size="sm"
+        >
+          Logout
+        </Button>
+      </Navbar>
+
+      <PageContainer className="flex flex-1 flex-col">
+        <Alert variant="warning" className="mb-4">
+          <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
+          {currentUser?.role === 'TEAM_MEMBER' && currentUser?.teamId && (
+            <span className="mt-1 block text-xs">
+              👥 You can chat with your Team Lead, Team Manager, and other Team Members from your team.
+            </span>
+          )}
+          <span className="mt-1 block text-xs">
             📨 Messages are delivered even when the recipient is offline
-          </p>
-        </div>
+          </span>
+        </Alert>
 
         {error && (
-          <div style={{ 
-            backgroundColor: '#fee2e2', 
-            padding: '12px', 
-            borderRadius: '8px', 
-            marginBottom: '16px',
-            color: '#991b1b'
-          }}>
-            ⚠️ {error}
-          </div>
+          <Alert variant="error" className="mb-4">⚠️ {error}</Alert>
         )}
         
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)', minHeight: '500px' }}>
-          <div style={{ borderRight: '1px solid #e5e7eb', padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ fontWeight: '600', color: '#111827' }}>
+        <div className="card-elevated flex min-h-[500px] flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[300px_1fr] lg:flex-none">
+          {/* User sidebar */}
+          <div className="sidebar-panel border-b-0 lg:border-r lg:rounded-r-none rounded-b-none m-0 lg:m-0 border-0 lg:border-r border-blue-400/20 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
                 Users ({filteredUsers.length})
                 {unreadCount > 0 && (
-                  <span style={{ 
-                    marginLeft: '8px',
-                    fontSize: '11px', 
-                    color: 'white', 
-                    backgroundColor: '#ef4444',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                  }}>
+                  <Badge variant="danger" className="text-[10px]">
                     {unreadCount} total new
-                  </span>
+                  </Badge>
                 )}
               </h3>
-              <button
+              <Button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                style={{
-                  padding: '4px 12px',
-                  backgroundColor: '#2563eb',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  opacity: isRefreshing ? 0.5 : 1
-                }}
+                size="sm"
+                variant="outline"
+                className="text-xs"
               >
                 {isRefreshing ? '⏳' : '🔄'} Refresh
-              </button>
+              </Button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[calc(100vh-280px)]">
               {filteredUsers.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center' }}>
-                  <p style={{ color: '#6b7280', fontSize: '14px' }}>No users available</p>
-                </div>
+                <EmptyState icon="👥" title="No users available" className="py-8" />
               ) : (
                 filteredUsers.map((u) => {
                   const isSameTeamUser = isSameTeam(u);
                   const userUnread = getUnreadForUser(u.id);
+                  const isSelected = selectedUser?.id === u.id;
                   return (
-                    <div
+                    <button
                       key={u.id}
+                      type="button"
                       onClick={() => {
                         setSelectedUser(u);
                         clearUnreadForUser(u.id);
                       }}
-                      style={{
-                        padding: '12px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        backgroundColor: selectedUser?.id === u.id ? '#eff6ff' : 'transparent',
-                        border: selectedUser?.id === u.id ? '1px solid #bfdbfe' : '1px solid transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        transition: 'all 0.2s'
-                      }}
+                      className={cn(
+                        'chat-sidebar-item',
+                        isSelected ? 'chat-sidebar-item-active' : ''
+                      )}
                     >
-                      <div>
-                        <div style={{ fontWeight: '500', color: '#111827' }}>
-                          {u.name}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 font-medium text-white">
+                          <span className="truncate">{u.name}</span>
                           {isSameTeamUser && currentUser?.role === 'TEAM_MEMBER' && (
-                            <span style={{ 
-                              marginLeft: '6px', 
-                              fontSize: '9px', 
-                              color: '#10b981',
-                              backgroundColor: '#d1fae5',
-                              padding: '1px 6px',
-                              borderRadius: '4px'
-                            }}>
-                              Same Team
-                            </span>
+                            <Badge variant="success" className="text-[9px]">Same Team</Badge>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>{u.email}</div>
-                        <div style={{ 
-                          fontSize: '10px', 
-                          color: '#6b7280', 
-                          backgroundColor: '#e5e7eb', 
-                          padding: '2px 6px', 
-                          borderRadius: '4px', 
-                          display: 'inline-block', 
-                          marginTop: '2px' 
-                        }}>
-                          {getRoleDisplay(u.role)}
-                        </div>
+                        <div className="truncate text-xs text-blue-200/70">{u.username}</div>
+                        <Badge variant="role" role={u.role} className="mt-1 text-[10px]">
+                          {getRoleLabel(u.role)}
+                        </Badge>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="ml-2 flex shrink-0 items-center gap-1.5">
                         {userUnread > 0 && (
-                          <span style={{ 
-                            fontSize: '11px', 
-                            color: 'white', 
-                            backgroundColor: '#22c55e',
-                            padding: '2px 6px',
-                            borderRadius: '10px',
-                            minWidth: '18px',
-                            textAlign: 'center',
-                            fontWeight: 'bold'
-                          }}>
-                            {userUnread}
-                          </span>
+                          <span className="unread-badge">{userUnread}</span>
                         )}
                         {onlineUsers.includes(u.id) && (
-                          <span style={{ 
-                            width: '10px', 
-                            height: '10px', 
-                            borderRadius: '50%', 
-                            backgroundColor: '#22c55e',
-                            display: 'inline-block'
-                          }}></span>
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-label="Online" />
                         )}
                       </div>
-                    </div>
+                    </button>
                   );
                 })
               )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', padding: '16px' }}>
+          {/* Chat panel */}
+          <div className="flex flex-1 flex-col p-4">
             {selectedUser ? (
               <>
-                <div style={{ 
-                  borderBottom: '1px solid #e5e7eb', 
-                  paddingBottom: '12px', 
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-blue-400/25 pb-3">
                   <div>
-                    <h3 style={{ fontWeight: '600', color: '#111827' }}>{selectedUser.name}</h3>
-                    <p style={{ fontSize: '14px', color: '#6b7280' }}>{selectedUser.email}</p>
-                    <span style={{ 
-                      fontSize: '10px', 
-                      color: '#6b7280', 
-                      backgroundColor: '#e5e7eb', 
-                      padding: '2px 6px', 
-                      borderRadius: '4px' 
-                    }}>
-                      {getRoleDisplay(selectedUser.role)}
-                    </span>
-                    {currentUser?.role === 'TEAM_MEMBER' && isSameTeam(selectedUser) && (
-                      <span style={{ 
-                        marginLeft: '6px', 
-                        fontSize: '9px', 
-                        color: '#10b981',
-                        backgroundColor: '#d1fae5',
-                        padding: '1px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        Same Team
-                      </span>
-                    )}
+                    <h3 className="font-semibold text-white">{selectedUser.name}</h3>
+                    <p className="text-sm text-blue-200/80">@{selectedUser.username}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="role" role={selectedUser.role} className="text-[10px]">
+                        {getRoleLabel(selectedUser.role)}
+                      </Badge>
+                      {currentUser?.role === 'TEAM_MEMBER' && isSameTeam(selectedUser) && (
+                        <Badge variant="success" className="text-[9px]">Same Team</Badge>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
+                  <div className="flex items-center gap-2">
+                    <Button
                       onClick={() => setShowFileShare(!showFileShare)}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: showFileShare ? '#ef4444' : '#10b981',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
+                      size="sm"
+                      variant={showFileShare ? 'danger' : 'success'}
                     >
                       {showFileShare ? '❌ Close' : '📎 File'}
-                    </button>
+                    </Button>
                     {onlineUsers.includes(selectedUser.id) ? (
-                      <span style={{ fontSize: '12px', color: '#22c55e' }}>● Online</span>
+                      <span className="text-xs text-emerald-600">● Online</span>
                     ) : (
-                      <span style={{ fontSize: '12px', color: '#6b7280' }}>● Offline</span>
+                      <span className="text-xs text-slate-400">
+                        ● Offline · {formatLastSeen(selectedUser.lastSeen)}
+                      </span>
                     )}
                   </div>
                 </div>
 
-                <div style={{ flex: 1, minHeight: '300px', maxHeight: '400px', overflowY: 'auto', marginBottom: '16px', padding: '8px' }}>
+                {typingUsers[selectedUser.id] && (
+                  <p className="mb-2 text-xs italic text-blue-200/90">{selectedUser.name} is typing…</p>
+                )}
+
+                <div className="mb-4 flex-1 space-y-2 overflow-y-auto rounded-lg bg-blue-950/40 p-3 min-h-[200px] max-h-[400px] lg:max-h-none lg:min-h-[300px] ring-1 ring-blue-400/15">
                   {messages.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: '#6b7280', marginTop: '100px' }}>
-                      💬 Send a message to start chatting!
-                    </p>
+                    <EmptyState
+                      icon="💬"
+                      title="Send a message to start chatting!"
+                      className="py-16"
+                    />
                   ) : (
                     messages.map((msg) => {
                       const isOwn = msg.senderId === currentUser?.id;
@@ -669,52 +563,35 @@ export default function ChatPage() {
                       return (
                         <div
                           key={msg.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                            marginBottom: '8px'
-                          }}
+                          className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}
                         >
                           <div
-                            style={{
-                              maxWidth: '70%',
-                              padding: '8px 12px',
-                              borderRadius: '12px',
-                              backgroundColor: isOwn ? '#2563eb' : '#f3f4f6',
-                              color: isOwn ? 'white' : '#111827',
-                              wordWrap: 'break-word'
-                            }}
+                            className={cn(
+                              'max-w-[75%]',
+                              isOwn ? 'chat-bubble-own' : 'chat-bubble-other'
+                            )}
                           >
                             {isFile ? (
                               <div>
-                                <div style={{ fontSize: '14px' }}>📎 {extractFileName(msg.content)}</div>
-                                <div style={{ fontSize: '10px', opacity: 0.7 }}>{extractFileSize(msg.content)}</div>
+                                <div className="text-sm">📎 {extractFileName(msg.content)}</div>
+                                <div className="text-[10px] opacity-70">{extractFileSize(msg.content)}</div>
                                 <button
                                   onClick={() => handleDownloadFile(msg.fileId!, extractFileName(msg.content))}
-                                  style={{
-                                    marginTop: '4px',
-                                    padding: '2px 10px',
-                                    backgroundColor: isOwn ? '#3b82f6' : '#10b981',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    fontSize: '11px'
-                                  }}
+                                  className={cn(
+                                    'mt-1.5 rounded px-2.5 py-0.5 text-[11px] text-white',
+                                    isOwn ? 'bg-brand-500 hover:bg-brand-400' : 'bg-emerald-500 hover:bg-emerald-600'
+                                  )}
                                 >
                                   ⬇️ Download
                                 </button>
                               </div>
                             ) : (
-                              <p style={{ margin: 0, fontSize: '14px' }}>{msg.content}</p>
+                              <p className="m-0 text-sm">{msg.content}</p>
                             )}
-                            <p style={{ 
-                              margin: 0, 
-                              fontSize: '10px', 
-                              color: isOwn ? '#93c5fd' : '#6b7280',
-                              marginTop: '2px',
-                              textAlign: 'right'
-                            }}>
+                            <p className={cn(
+                              'm-0 mt-0.5 text-right text-[10px]',
+                              isOwn ? 'text-blue-100/80' : 'text-slate-500'
+                            )}>
                               {formatTime(msg.createdAt)}
                               {status}
                             </p>
@@ -730,66 +607,31 @@ export default function ChatPage() {
                   <FileSharing receiverId={selectedUser.id} currentUser={currentUser} />
                 )}
 
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '8px' }}>
+                <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
                   <input
                     type="text"
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(e) => handleMessageInput(e.target.value)}
                     placeholder="Type a message..."
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
+                    className="input-base flex-1"
+                    aria-label="Message"
                   />
-                  <button
-                    type="submit"
-                    disabled={!message.trim()}
-                    style={{
-                      padding: '10px 24px',
-                      backgroundColor: '#2563eb',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      opacity: message.trim() ? 1 : 0.5
-                    }}
-                  >
+                  <Button type="submit" disabled={!message.trim()}>
                     Send
-                  </button>
+                  </Button>
                 </form>
               </>
             ) : (
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column',
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                height: '100%',
-                color: '#6b7280'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
-                <p>Select a user to start chatting</p>
-                {filteredUsers.length > 0 && (
-                  <p style={{ fontSize: '14px', marginTop: '8px' }}>
-                    {filteredUsers.length} users available
-                  </p>
-                )}
-              </div>
+              <EmptyState
+                icon="💬"
+                title="Select a user to start chatting"
+                description={filteredUsers.length > 0 ? `${filteredUsers.length} users available` : undefined}
+                className="flex-1"
+              />
             )}
           </div>
         </div>
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      </PageContainer>
     </div>
   );
 }

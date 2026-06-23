@@ -2,12 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { RoleHero } from '@/components/layout/RoleHero';
+import { SecurityStrip } from '@/components/layout/SecurityStrip';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Alert } from '@/components/ui/Alert';
+import { StatCard } from '@/components/ui/StatCard';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { apiFetch, authHeaders } from '@/lib/api/config';
 
 interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
   role: string;
   isOnline: boolean;
   teamId: string | null;
@@ -16,7 +25,10 @@ interface User {
 export default function AdminDashboard() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ name: string; username: string } | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [stats, setStats] = useState({
     totalUsers: 0,
     onlineUsers: 0,
@@ -39,70 +51,40 @@ export default function AdminDashboard() {
     }
     
     toast.success('⚙️ Welcome to Admin Panel');
-    fetchUsers(token);
-    fetchStats(token);
-  }, []);
+    setCurrentUser({ name: user.name, username: user.username });
+    setAuthReady(true);
+    loadDashboard(token);
+  }, [router]);
 
-  const fetchUsers = async (token: string) => {
+  const loadDashboard = async (token: string) => {
+    setDataLoading(true);
+    setFetchError('');
     try {
-      const response = await fetch('http://192.168.18.139:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await apiFetch('/users', {
+        headers: authHeaders(token),
       });
       const data = await response.json();
       if (data.success) {
         setUsers(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async (token: string) => {
-    try {
-      const usersRes = await fetch('http://192.168.18.139:5000/api/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const usersData = await usersRes.json();
-      
-      if (usersData.success) {
-        const online = usersData.data.filter((u: any) => u.isOnline).length;
+        const online = data.data.filter((u: User) => u.isOnline).length;
         setStats({
-          totalUsers: usersData.data.length,
+          totalUsers: data.data.length,
           onlineUsers: online,
           totalMessages: 0,
           serverUptime: '2h 15m'
         });
+      } else {
+        setFetchError(data.message || 'Failed to load dashboard data');
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      const message = error instanceof Error ? error.message : 'Error fetching dashboard data';
+      setFetchError(message);
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
-  const getRoleIcon = (role: string) => {
-    switch(role) {
-      case 'ADMIN': return '⚙️';
-      case 'SUPER_USER': return '👑';
-      case 'TEAM_LEAD': return '🌿';
-      case 'TEAM_MANAGER': return '📋';
-      case 'TEAM_MEMBER': return '👤';
-      default: return '👤';
-    }
-  };
-
-  const getRoleColor = (role: string) => {
-    switch(role) {
-      case 'ADMIN': return '#1e293b';
-      case 'SUPER_USER': return '#fbbf24';
-      case 'TEAM_LEAD': return '#10b981';
-      case 'TEAM_MANAGER': return '#3b82f6';
-      case 'TEAM_MEMBER': return '#8b5cf6';
-      default: return '#6b7280';
-    }
-  };
-
-  // Build organization hierarchy
   const buildHierarchy = () => {
     const hierarchy: any = {
       admin: null,
@@ -110,28 +92,23 @@ export default function AdminDashboard() {
       teamLeads: []
     };
 
-    // Find Admin
     const admin = users.find(u => u.role === 'ADMIN');
     if (admin) {
       hierarchy.admin = admin;
     }
 
-    // Find Super User
     const superUser = users.find(u => u.role === 'SUPER_USER');
     if (superUser) {
       hierarchy.superUser = superUser;
     }
 
-    // Find all Team Leads
     const teamLeads = users.filter(u => u.role === 'TEAM_LEAD');
     
     teamLeads.forEach(lead => {
-      // Find Team Managers under this lead (same teamId)
       const managers = users.filter(u => 
         u.role === 'TEAM_MANAGER' && u.teamId === lead.teamId
       );
       
-      // Find Team Members under this lead (same teamId)
       const members = users.filter(u => 
         u.role === 'TEAM_MEMBER' && u.teamId === lead.teamId
       );
@@ -143,13 +120,11 @@ export default function AdminDashboard() {
       });
     });
 
-    // Find orphaned managers (no team lead)
     const orphanedManagers = users.filter(u => 
       u.role === 'TEAM_MANAGER' && 
       !teamLeads.some(l => l.teamId === u.teamId)
     );
 
-    // Find orphaned members (no team lead)
     const orphanedMembers = users.filter(u => 
       u.role === 'TEAM_MEMBER' && 
       !teamLeads.some(l => l.teamId === u.teamId)
@@ -160,121 +135,143 @@ export default function AdminDashboard() {
 
   const { hierarchy, orphanedManagers, orphanedMembers } = buildHierarchy();
 
-  if (loading) {
-    return <div style={{ padding: '20px' }}>Loading Admin Dashboard...</div>;
+  const statCards = [
+    { label: 'Total Users', value: stats.totalUsers, icon: '👥', accent: 'slate' as const },
+    { label: 'Online Now', value: stats.onlineUsers, icon: '🟢', accent: 'emerald' as const },
+    { label: 'Messages', value: stats.totalMessages, icon: '💬', accent: 'blue' as const },
+    { label: 'Server Uptime', value: stats.serverUptime, icon: '⏱️', accent: 'violet' as const },
+  ];
+
+  if (!authReady) {
+    return <LoadingSpinner fullScreen message="Checking access..." />;
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      <Toaster position="top-right" />
-      
-      <nav style={{ backgroundColor: '#1e293b', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', padding: '0 20px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', height: '64px', alignItems: 'center' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#e2e8f0' }}>⚙️ Admin Panel</h1>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <button onClick={() => router.push('/admin/users')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              👥 Manage Users
-            </button>
-            <button onClick={() => router.push('/dashboard')} style={{ padding: '8px 16px', backgroundColor: '#64748b', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Dashboard
-            </button>
-            <button onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+    <div className="page-shell">
+      <Navbar variant="admin" title="⚙️ Admin Control Center">
+        <Button onClick={() => router.push('/admin/users')} size="sm">
+          👥 Manage Users
+        </Button>
+        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
+          Dashboard
+        </Button>
+        <Button
+          onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }}
+          variant="danger"
+          size="sm"
+        >
+          Logout
+        </Button>
+      </Navbar>
 
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px' }}>
-        {/* Stats Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '14px', color: '#6b7280' }}>Total Users</h3>
-            <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e293b' }}>{stats.totalUsers}</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '14px', color: '#6b7280' }}>Online Users</h3>
-            <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#22c55e' }}>{stats.onlineUsers}</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '14px', color: '#6b7280' }}>Total Messages</h3>
-            <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#3b82f6' }}>{stats.totalMessages}</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '14px', color: '#6b7280' }}>Server Uptime</h3>
-            <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#8b5cf6' }}>{stats.serverUptime}</p>
-          </div>
+      <PageContainer className="space-y-6">
+        {fetchError && (
+          <Alert variant="error" className="mb-4">
+            {fetchError}
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                const token = localStorage.getItem('auth_token');
+                if (token) loadDashboard(token);
+              }}
+            >
+              Retry
+            </Button>
+          </Alert>
+        )}
+
+        <RoleHero
+          role="ADMIN"
+          name={currentUser?.name || 'Admin'}
+          username={currentUser?.username}
+        />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((stat) => (
+            dataLoading ? (
+              <div key={stat.label} className="h-28 animate-pulse rounded-2xl bg-blue-800/50" />
+            ) : (
+              <StatCard
+                key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                icon={stat.icon}
+                accent={stat.accent}
+              />
+            )
+          ))}
         </div>
 
-        {/* Organization Hierarchy */}
-        <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '16px' }}>
+        <Card className="mb-6">
+          <h2 className="heading-card mb-4">
             📊 Organization Hierarchy
           </h2>
-          
-          <div style={{ fontFamily: 'monospace', fontSize: '14px' }}>
-            {/* Admin */}
+
+          {dataLoading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner message="Loading organization data..." size="sm" />
+            </div>
+          ) : (
+          <div className="hierarchy-root">
             {hierarchy.admin && (
-              <div style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '18px' }}>⚙️</span>
-                  <span style={{ fontWeight: 'bold', color: '#1e293b' }}>Admin</span>
-                  <span style={{ fontSize: '12px', color: '#6b7280' }}>({hierarchy.admin.name})</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⚙️</span>
+                  <span className="hierarchy-title">Admin</span>
+                  <span className="hierarchy-subtitle">({hierarchy.admin.name})</span>
                 </div>
-                <div style={{ paddingLeft: '32px', fontSize: '13px', color: '#4b5563' }}>
-                  {hierarchy.admin.isOnline ? '🟢' : '⚪'} {hierarchy.admin.email}
+                <div className="hierarchy-item">
+                  {hierarchy.admin.isOnline ? '🟢' : '⚪'} {hierarchy.admin.username}
                 </div>
               </div>
             )}
 
-            {/* Super User */}
             {hierarchy.superUser && (
-              <div style={{ marginBottom: '8px', marginTop: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '18px' }}>👑</span>
-                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>Super User</span>
-                  <span style={{ fontSize: '12px', color: '#6b7280' }}>({hierarchy.superUser.name})</span>
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">👑</span>
+                  <span className="hierarchy-title">Super User</span>
+                  <span className="hierarchy-subtitle">({hierarchy.superUser.name})</span>
                 </div>
-                <div style={{ paddingLeft: '32px', fontSize: '13px', color: '#4b5563' }}>
-                  {hierarchy.superUser.isOnline ? '🟢' : '⚪'} {hierarchy.superUser.email}
+                <div className="hierarchy-item">
+                  {hierarchy.superUser.isOnline ? '🟢' : '⚪'} {hierarchy.superUser.username}
                 </div>
               </div>
             )}
 
-            {/* Team Leads with their team */}
             {hierarchy.teamLeads.length > 0 && (
-              <div style={{ marginTop: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '18px' }}>🌿</span>
-                  <span style={{ fontWeight: 'bold', color: '#065f46' }}>Team Leads</span>
-                  <span style={{ fontSize: '12px', color: '#6b7280' }}>({hierarchy.teamLeads.length})</span>
+              <div className="mt-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-lg">🌿</span>
+                  <span className="hierarchy-title">Team Leads</span>
+                  <span className="hierarchy-subtitle">({hierarchy.teamLeads.length})</span>
                 </div>
                 
-                {hierarchy.teamLeads.map((lead: any, index: number) => (
-                  <div key={lead.id} style={{ paddingLeft: '32px', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '14px', fontWeight: '500', color: '#065f46' }}>
-                      {lead.isOnline ? '🟢' : '⚪'} {lead.name} ({lead.email})
+                {hierarchy.teamLeads.map((lead: any) => (
+                  <div key={lead.id} className="mb-3 pl-8">
+                    <div className="text-sm font-medium text-card-body">
+                      {lead.isOnline ? '🟢' : '⚪'} {lead.name} ({lead.username})
                     </div>
                     
-                    {/* Team Managers under this Team Lead */}
                     {lead.managers.length > 0 && (
-                      <div style={{ paddingLeft: '30px', marginTop: '4px' }}>
-                        <div style={{ fontSize: '13px', color: '#3b82f6' }}>📋 Team Managers:</div>
+                      <div className="mt-1 pl-6">
+                        <div className="hierarchy-nested-label">📋 Team Managers:</div>
                         {lead.managers.map((manager: User) => (
-                          <div key={manager.id} style={{ paddingLeft: '24px', fontSize: '13px', color: '#4b5563' }}>
-                            {manager.isOnline ? '🟢' : '⚪'} {manager.name} ({manager.email})
+                          <div key={manager.id} className="hierarchy-nested-item">
+                            {manager.isOnline ? '🟢' : '⚪'} {manager.name} ({manager.username})
                           </div>
                         ))}
                       </div>
                     )}
                     
-                    {/* Team Members under this Team Lead */}
                     {lead.members.length > 0 && (
-                      <div style={{ paddingLeft: '30px', marginTop: '4px' }}>
-                        <div style={{ fontSize: '13px', color: '#8b5cf6' }}>👤 Team Members:</div>
+                      <div className="mt-1 pl-6">
+                        <div className="hierarchy-nested-label">👤 Team Members:</div>
                         {lead.members.map((member: User) => (
-                          <div key={member.id} style={{ paddingLeft: '24px', fontSize: '13px', color: '#4b5563' }}>
-                            {member.isOnline ? '🟢' : '⚪'} {member.name} ({member.email})
+                          <div key={member.id} className="hierarchy-nested-item">
+                            {member.isOnline ? '🟢' : '⚪'} {member.name} ({member.username})
                           </div>
                         ))}
                       </div>
@@ -284,64 +281,69 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* Orphaned Users (if any) */}
             {orphanedManagers.length > 0 && (
-              <div style={{ marginTop: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#ef4444' }}>
+              <div className="mt-3">
+                <div className="hierarchy-warning">
                   ⚠️ Orphaned Team Managers (No Team Lead):
                 </div>
                 {orphanedManagers.map((user: User) => (
-                  <div key={user.id} style={{ paddingLeft: '32px', fontSize: '13px', color: '#4b5563' }}>
-                    {user.isOnline ? '🟢' : '⚪'} {user.name} ({user.email})
+                  <div key={user.id} className="hierarchy-item">
+                    {user.isOnline ? '🟢' : '⚪'} {user.name} ({user.username})
                   </div>
                 ))}
               </div>
             )}
 
             {orphanedMembers.length > 0 && (
-              <div style={{ marginTop: '8px' }}>
-                <div style={{ fontSize: '13px', color: '#ef4444' }}>
+              <div className="mt-2">
+                <div className="hierarchy-warning">
                   ⚠️ Orphaned Team Members (No Team Lead):
                 </div>
                 {orphanedMembers.map((user: User) => (
-                  <div key={user.id} style={{ paddingLeft: '32px', fontSize: '13px', color: '#4b5563' }}>
-                    {user.isOnline ? '🟢' : '⚪'} {user.name} ({user.email})
+                  <div key={user.id} className="hierarchy-item">
+                    {user.isOnline ? '🟢' : '⚪'} {user.name} ({user.username})
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+          )}
+        </Card>
 
-        {/* Audit Logs */}
-        <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '16px' }}>📋 Audit Logs</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="heading-card">📋 Audit Logs</h2>
+            <SecurityStrip variant="dark" />
+          </div>
+          <p className="demo-banner">
+            Demo data — real audit logging will appear here once the AuditLog service is enabled (Wave B).
+          </p>
+          <div className="table-wrap">
+            <table className="table-dark">
               <thead>
-                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', color: '#6b7280' }}>Time</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: '#6b7280' }}>Event</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: '#6b7280' }}>User</th>
+                <tr>
+                  <th>Time</th>
+                  <th>Event</th>
+                  <th>User</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { time: new Date().toLocaleTimeString(), event: 'User logged in', user: 'admin@company.com' },
-                  { time: new Date().toLocaleTimeString(), event: 'New user created', user: 'admin@company.com' },
-                  { time: new Date(Date.now() - 300000).toLocaleTimeString(), event: 'File uploaded', user: 'admin@company.com' },
+                  { time: new Date().toLocaleTimeString(), event: 'User logged in', user: 'admin' },
+                  { time: new Date().toLocaleTimeString(), event: 'New user created', user: 'admin' },
+                  { time: new Date(Date.now() - 300000).toLocaleTimeString(), event: 'File uploaded', user: 'admin' },
                 ].map((log, index) => (
-                  <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '12px', fontSize: '14px' }}>{log.time}</td>
-                    <td style={{ padding: '12px', fontSize: '14px' }}>{log.event}</td>
-                    <td style={{ padding: '12px', fontSize: '14px' }}>{log.user}</td>
+                  <tr key={index}>
+                    <td>{log.time}</td>
+                    <td>{log.event}</td>
+                    <td>{log.user}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
+        </Card>
+      </PageContainer>
     </div>
   );
 }

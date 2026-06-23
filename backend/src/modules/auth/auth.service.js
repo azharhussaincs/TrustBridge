@@ -6,10 +6,10 @@ const prisma = new PrismaClient();
 
 class AuthService {
   async register(userData) {
-    const { email, password, name, role, teamId } = userData;
+    const { username, password, name, role, teamId } = userData;
     
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { username }
     });
     
     if (existingUser) {
@@ -20,7 +20,7 @@ class AuthService {
     
     const user = await prisma.user.create({
       data: {
-        email,
+        username,
         password: hashedPassword,
         name,
         role: role || 'TEAM_MEMBER',
@@ -31,9 +31,9 @@ class AuthService {
     return user;
   }
   
-  async login(email, password) {
+  async login(username, password) {
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { username }
     });
     
     if (!user) {
@@ -48,7 +48,7 @@ class AuthService {
     const token = jwt.sign(
       { 
         id: user.id, 
-        email: user.email, 
+        username: user.username, 
         role: user.role 
       },
       process.env.JWT_SECRET,
@@ -59,7 +59,7 @@ class AuthService {
       token,
       user: {
         id: user.id,
-        email: user.email,
+        username: user.username,
         name: user.name,
         role: user.role
       }

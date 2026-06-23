@@ -3,6 +3,10 @@
 import { useState, useRef } from 'react';
 import { useSocket } from '@/context/SocketContext';
 import toast from 'react-hot-toast';
+import { Button } from '@/components/ui/Button';
+import { Alert } from '@/components/ui/Alert';
+import { cn } from '@/lib/utils';
+import { apiUrl } from '@/lib/api/config';
 
 export default function FileSharing({ receiverId, currentUser }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -90,7 +94,7 @@ export default function FileSharing({ receiverId, currentUser }) {
           xhr.onerror = () => reject(new Error('Network error'));
         });
 
-        xhr.open('POST', 'http://192.168.18.139:5000/api/files/upload');
+        xhr.open('POST', apiUrl('/files/upload'));
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
 
@@ -98,11 +102,9 @@ export default function FileSharing({ receiverId, currentUser }) {
         
         if (response.success) {
           uploadedCount++;
-          // Send message with file ID - THIS IS THE KEY PART
           const fileId = response.data.id;
           const fileName = file.name;
           const fileSize = formatFileSize(file.size);
-          // Use the socket to send message with fileId
           sendMessage(receiverId, `📎 ${fileName} (${fileSize})`, true, fileId);
           toast.success(`📎 File "${fileName}" sent!`);
         } else {
@@ -164,183 +166,104 @@ export default function FileSharing({ receiverId, currentUser }) {
     return selectedFiles.reduce((total, file) => total + file.size, 0);
   };
 
-  return (
-    <div style={{ 
-      borderTop: '1px solid #e5e7eb', 
-      padding: '12px',
-      backgroundColor: '#f9fafb'
-    }}>
-      {error && (
-        <div style={{ 
-          color: '#ef4444', 
-          fontSize: '12px', 
-          marginBottom: '8px',
-          padding: '4px 8px',
-          backgroundColor: '#fee2e2',
-          borderRadius: '4px'
-        }}>
-          ❌ {error}
-        </div>
-      )}
-      
-      {success && (
-        <div style={{ 
-          color: '#22c55e', 
-          fontSize: '12px', 
-          marginBottom: '8px',
-          padding: '4px 8px',
-          backgroundColor: '#dcfce7',
-          borderRadius: '4px'
-        }}>
-          {success}
-        </div>
-      )}
+  const avgProgress = Object.values(uploadProgress).length > 0
+    ? Object.values(uploadProgress).reduce((a, b) => a + b, 0) / Object.values(uploadProgress).length
+    : 0;
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+  return (
+    <div className="panel-light border-t-0 mt-3 animate-fade-in">
+      {error && <Alert variant="error" className="mb-3 text-xs">{error}</Alert>}
+      {success && <Alert variant="success" className="mb-3 text-xs">{success}</Alert>}
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
             onChange={handleFileSelect}
             disabled={uploading}
             multiple
-            style={{ display: 'none' }}
+            className="hidden"
             id="file-upload"
           />
           
           <label
             htmlFor="file-upload"
-            style={{
-              padding: '6px 14px',
-              backgroundColor: '#e5e7eb',
-              color: '#374151',
-              borderRadius: '6px',
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              fontSize: '12px',
-              opacity: uploading ? 0.5 : 1
-            }}
+            className={cn(
+              'inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
+              uploading && 'cursor-not-allowed opacity-50'
+            )}
           >
             📎 Choose Files
           </label>
-          <span style={{ fontSize: '11px', color: '#6b7280' }}>
+          <span className="text-xs text-slate-500">
             (Any file type, max 50MB each)
           </span>
         </div>
 
         {selectedFiles.length > 0 && (
-          <div style={{ 
-            maxHeight: '180px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            padding: '4px',
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            border: '1px solid #e5e7eb'
-          }}>
-            {selectedFiles.map((file, index) => (
-              <div
-                key={index}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '4px 8px',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '4px',
-                  border: '1px solid #e5e7eb'
-                }}
-              >
-                <span style={{ fontSize: '18px' }}>{getFileIcon(file.name)}</span>
-                <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    fontWeight: '500',
-                    color: '#111827',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {file.name}
+          <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+            <div className="flex flex-col gap-1.5">
+              {selectedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 px-2 py-1.5"
+                >
+                  <span className="text-lg" aria-hidden="true">{getFileIcon(file.name)}</span>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="truncate text-xs font-medium text-slate-900">
+                      {file.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {formatFileSize(file.size)}
+                      {uploadProgress[index] !== undefined && uploading && (
+                        <span className="ml-2 text-brand-600">
+                          {uploadProgress[index]}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>
-                    {formatFileSize(file.size)}
-                    {uploadProgress[index] !== undefined && uploading && (
-                      <span style={{ color: '#2563eb', marginLeft: '8px' }}>
-                        {uploadProgress[index]}%
-                      </span>
-                    )}
-                  </div>
+                  {!uploading && (
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="rounded px-1.5 py-0.5 text-[10px] text-red-500 hover:bg-red-50"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-                {!uploading && (
-                  <button
-                    onClick={() => removeFile(index)}
-                    style={{
-                      padding: '2px 6px',
-                      backgroundColor: '#ef4444',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '10px'
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-            <div style={{ 
-              fontSize: '10px', 
-              color: '#6b7280',
-              padding: '2px 8px',
-              borderTop: '1px solid #e5e7eb',
-              marginTop: '2px'
-            }}>
+              ))}
+            </div>
+            <div className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] text-slate-500">
               Total: {selectedFiles.length} files ({formatFileSize(getTotalSize())})
             </div>
           </div>
         )}
 
         {selectedFiles.length > 0 && !uploading && (
-          <button
-            onClick={handleUpload}
-            style={{
-              padding: '6px 16px',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
+          <Button onClick={handleUpload} size="sm" className="self-start">
             Send All 📤 ({selectedFiles.length} files)
-          </button>
+          </Button>
         )}
 
         {uploading && (
-          <div style={{ 
-            width: '100%', 
-            height: '4px', 
-            backgroundColor: '#e5e7eb',
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{ 
-              width: `${Object.values(uploadProgress).length > 0 ? Object.values(uploadProgress).reduce((a, b) => a + b, 0) / Object.values(uploadProgress).length : 0}%`, 
-              height: '100%', 
-              backgroundColor: '#2563eb',
-              transition: 'width 0.3s'
-            }} />
+          <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-all duration-300"
+              style={{ width: `${avgProgress}%` }}
+              role="progressbar"
+              aria-valuenow={avgProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
           </div>
         )}
       </div>
       
-      <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '6px' }}>
-        🔐 AES-GCM encrypted • Any file type • Multiple selection
-      </div>
+      <p className="mt-2 text-[10px] text-slate-400">
+        🔐 AES-GCM encrypted · Any file type · Multiple selection
+      </p>
     </div>
   );
 }
