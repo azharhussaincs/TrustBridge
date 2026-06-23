@@ -3,8 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
-import { apiUrl, authHeaders } from '@/lib/api/config';
-import { getServerOrigin } from '@/lib/api/config';
+import { apiUrl, authHeaders, getWebSocketUrl } from '@/lib/api/config';
 
 const SocketContext = createContext();
 
@@ -67,7 +66,7 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    const newSocket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin(), {
+    const newSocket = io(getWebSocketUrl(), {
       auth: { token },
       reconnection: true,
     });
@@ -98,16 +97,16 @@ export function SocketProvider({ children }) {
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
       if (message.receiverId === currentUser.id) {
+        setUnreadCount((prev) => prev + 1);
+        setUnreadMessages((prev) => ({
+          ...prev,
+          [message.senderId]: (prev[message.senderId] || 0) + 1,
+        }));
+
         const msgTime = message.createdAt ? new Date(message.createdAt).getTime() : Date.now();
         const isLiveMessage = msgTime >= connectedAtRef.current - 5000;
 
         if (isLiveMessage) {
-          setUnreadCount((prev) => prev + 1);
-          setUnreadMessages((prev) => ({
-            ...prev,
-            [message.senderId]: (prev[message.senderId] || 0) + 1,
-          }));
-
           const senderName = message.sender?.name || 'Someone';
           const content = message.content || '📎 File shared';
           const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
@@ -120,6 +119,11 @@ export function SocketProvider({ children }) {
 
     newSocket.on('message-sent', (message) => {
       setMessageStatus((prev) => ({ ...prev, [message.id]: 'sent' }));
+      window.dispatchEvent(new CustomEvent('message-sent', { detail: message }));
+    });
+
+    newSocket.on('message-error', (payload) => {
+      window.dispatchEvent(new CustomEvent('message-error', { detail: payload }));
     });
 
     newSocket.on('message-read', ({ messageId }) => {

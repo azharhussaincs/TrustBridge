@@ -23,6 +23,40 @@ const io = new Server(server, {
 
 const connectedUsers = new Map();
 
+function isUserSocketOnline(userId) {
+  const room = io.sockets.adapter.rooms.get(userId);
+  return Boolean(room && room.size > 0);
+}
+
+async function registerSocketUser(socket, { deliverOffline = true } = {}) {
+  const userId = socket.userId;
+  if (!userId) return;
+
+  socket.join(userId);
+  connectedUsers.set(userId, socket.id);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { isOnline: true, lastSeen: new Date() },
+  });
+
+  io.emit('user-online', { userId, online: true });
+
+  if (!deliverOffline) return;
+
+  const unreadMessages = await prisma.message.findMany({
+    where: { receiverId: userId, read: false },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (unreadMessages.length > 0) {
+    console.log(`📨 Delivering ${unreadMessages.length} offline messages to ${userId}`);
+    for (const msg of unreadMessages) {
+      socket.emit('new-message', msg);
+    }
+  }
+}
+
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
@@ -42,8 +76,16 @@ io.use(async (socket, next) => {
   }
 });
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   console.log(`🔌 New client connected: ${socket.id} (user ${socket.userId})`);
+
+  try {
+    await registerSocketUser(socket);
+    console.log(`👤 User ${socket.userId} is online`);
+    console.log(`📊 Total connected users: ${connectedUsers.size}`);
+  } catch (error) {
+    console.error('❌ Error registering user on connect:', error.message);
+  }
 
   socket.on('register-user', async (userId) => {
     if (!userId || userId !== socket.userId) {
@@ -51,36 +93,9 @@ io.on('connection', (socket) => {
       return;
     }
     try {
-        const existingUser = socket.user;
-        
-        if (!existingUser) {
-          console.log(`⚠️ User ${userId} not found in database`);
-          socket.emit('user-error', { message: 'User not found' });
-          return;
-        }
-        
-        connectedUsers.set(userId, socket.id);
-        await prisma.user.update({
-          where: { id: userId },
-          data: { isOnline: true, lastSeen: new Date() }
-        });
-        console.log(`👤 User ${userId} is online`);
-        console.log(`📊 Total connected users: ${connectedUsers.size}`);
-        io.emit('user-online', { userId, online: true });
-        
-        const unreadMessages = await prisma.message.findMany({
-          where: { receiverId: userId, read: false },
-          orderBy: { createdAt: 'asc' }
-        });
-        
-        if (unreadMessages.length > 0) {
-          console.log(`📨 Delivering ${unreadMessages.length} offline messages`);
-          for (const msg of unreadMessages) {
-            socket.emit('new-message', msg);
-          }
-        }
+      await registerSocketUser(socket, { deliverOffline: false });
     } catch (error) {
-        console.error('❌ Error registering user:', error.message);
+      console.error('❌ Error registering user:', error.message);
     }
   });
 
@@ -121,15 +136,14 @@ io.on('connection', (socket) => {
         }
       });
       
-      const receiverSocketId = connectedUsers.get(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('new-message', message);
+      if (isUserSocketOnline(receiverId)) {
+        io.to(receiverId).emit('new-message', message);
       } else {
         console.log(`💾 Message saved for offline user ${receiverId}`);
-        socket.emit('message-saved', { 
-          messageId: message.id, 
-          receiverId, 
-          status: 'delivered-when-online' 
+        socket.emit('message-saved', {
+          messageId: message.id,
+          receiverId,
+          status: 'delivered-when-online',
         });
       }
       socket.emit('message-sent', message);
@@ -142,9 +156,8 @@ io.on('connection', (socket) => {
   socket.on('typing', (data) => {
     const { senderId, receiverId, isTyping } = data;
     if (senderId !== socket.userId) return;
-    const receiverSocketId = connectedUsers.get(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('user-typing', { senderId, isTyping });
+    if (isUserSocketOnline(receiverId)) {
+      io.to(receiverId).emit('user-typing', { senderId, isTyping });
     }
   });
 
@@ -156,9 +169,8 @@ io.on('connection', (socket) => {
         where: { id: messageId },
         data: { read: true, readAt: new Date() }
       });
-      const senderSocketId = connectedUsers.get(senderId);
-      if (senderSocketId) {
-        io.to(senderSocketId).emit('message-read', { messageId, receiverId });
+      if (isUserSocketOnline(senderId)) {
+        io.to(senderId).emit('message-read', { messageId, receiverId });
       }
     } catch (error) {
       console.error('❌ Error marking message as read:', error.message);
@@ -183,26 +195,25 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', async () => {
-    let userId = null;
-    for (const [id, socketId] of connectedUsers.entries()) {
-      if (socketId === socket.id) {
-        userId = id;
-        connectedUsers.delete(id);
-        break;
-      }
+    const userId = socket.userId;
+    if (connectedUsers.get(userId) === socket.id) {
+      connectedUsers.delete(userId);
     }
-    if (userId) {
-      try {
+
+    if (!userId) return;
+
+    try {
+      if (!isUserSocketOnline(userId)) {
         await prisma.user.update({
           where: { id: userId },
-          data: { isOnline: false, lastSeen: new Date() }
+          data: { isOnline: false, lastSeen: new Date() },
         });
         console.log(`👋 User ${userId} disconnected`);
         console.log(`📊 Total connected users: ${connectedUsers.size}`);
         io.emit('user-offline', { userId, online: false });
-      } catch (error) {
-        console.log(`⚠️ User ${userId} not found when disconnecting`);
       }
+    } catch (error) {
+      console.log(`⚠️ User ${userId} not found when disconnecting`);
     }
   });
 

@@ -158,15 +158,6 @@ export default function LoginPage() {
                   {loading ? 'Signing in...' : 'Sign In to TrustBridge'}
                 </Button>
               </form>
-
-              <div className="mt-6 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Demo accounts</p>
-                <div className="mt-2 space-y-1 text-sm text-slate-600">
-                  <p><strong className="text-slate-800">admin</strong> / admin123</p>
-                  <p><strong className="text-slate-800">teamlead</strong> / admin123</p>
-                  <p><strong className="text-slate-800">teammember</strong> / admin123</p>
-                </div>
-              </div>
             </div>
 
             <div className="mt-6 lg:hidden">

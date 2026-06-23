@@ -23,24 +23,34 @@ import {
   type UserRole,
 } from '@/lib/roles';
 import { cn } from '@/lib/utils';
+import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
   const { unreadCount } = useSocket();
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+
+    const userData = readStoredUser();
+    if (!userData) {
+      clearStoredAuth();
+      router.replace('/login');
+      return;
+    }
+
     setUser(userData);
+    setAuthReady(true);
     toast.success(`Welcome ${userData.name}!`);
   }, [router]);
 
-  if (!user) {
+  if (!authReady || !user) {
     return <LoadingSpinner fullScreen message="Loading your workspace..." />;
   }
 

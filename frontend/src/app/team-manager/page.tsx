@@ -13,27 +13,35 @@ import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 import { ROLE_SHELL_BG } from '@/lib/roles';
 import { cn } from '@/lib/utils';
+import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 export default function TeamManagerDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
   const { unreadCount } = useSocket();
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userData = readStoredUser();
+    if (!userData) {
+      clearStoredAuth();
+      router.replace('/login');
+      return;
+    }
     if (userData.role !== 'TEAM_MANAGER') {
-      router.push('/dashboard');
+      router.replace('/dashboard');
       return;
     }
     setUser(userData);
+    setAuthReady(true);
   }, [router]);
 
-  if (!user) {
+  if (!authReady || !user) {
     return <LoadingSpinner fullScreen message="Loading Team Manager workspace..." />;
   }
 

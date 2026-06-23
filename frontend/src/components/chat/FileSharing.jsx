@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
+import { buildFileMessageContent } from '@/lib/chat/fileMessage';
 
-export default function FileSharing({ receiverId, currentUser }) {
+export default function FileSharing({ receiverId, currentUser, onFileMessage }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
@@ -52,6 +53,22 @@ export default function FileSharing({ receiverId, currentUser }) {
       const file = selectedFiles[i];
       
       setUploadProgress(prev => ({ ...prev, [i]: 0 }));
+
+      const tempId = `temp-file-${Date.now()}-${i}`;
+      const fileContent = buildFileMessageContent(file.name, file.size);
+
+      if (onFileMessage) {
+        onFileMessage({
+          id: tempId,
+          content: fileContent,
+          senderId: currentUser.id,
+          receiverId,
+          fileId: null,
+          createdAt: new Date().toISOString(),
+          read: false,
+          uploading: true,
+        });
+      }
 
       const formData = new FormData();
       formData.append('file', file);
@@ -105,7 +122,22 @@ export default function FileSharing({ receiverId, currentUser }) {
           const fileId = response.data.id;
           const fileName = file.name;
           const fileSize = formatFileSize(file.size);
-          sendMessage(receiverId, `📎 ${fileName} (${fileSize})`, true, fileId);
+          const content = buildFileMessageContent(fileName, file.size);
+
+          if (onFileMessage) {
+            onFileMessage({
+              id: tempId,
+              content,
+              senderId: currentUser.id,
+              receiverId,
+              fileId,
+              createdAt: new Date().toISOString(),
+              read: false,
+              uploading: false,
+            });
+          }
+
+          sendMessage(receiverId, content, true, fileId);
           toast.success(`📎 File "${fileName}" sent!`);
         } else {
           failedCount++;
@@ -116,6 +148,19 @@ export default function FileSharing({ receiverId, currentUser }) {
         console.error('Upload error for file:', file.name, err);
         failedCount++;
         setError(`Failed to upload: ${file.name}`);
+        if (onFileMessage) {
+          onFileMessage({
+            id: tempId,
+            content: fileContent,
+            senderId: currentUser.id,
+            receiverId,
+            fileId: null,
+            createdAt: new Date().toISOString(),
+            read: false,
+            uploading: false,
+            failed: true,
+          });
+        }
       }
     }
 

@@ -1,5 +1,11 @@
 const { COMMUNICATION_RULES } = require('../config/constants');
 
+/** Users without a team assignment share the same implicit team (matches frontend null/undefined teamId checks). */
+function sameTeam(teamA, teamB) {
+  if (!teamA && !teamB) return true;
+  return Boolean(teamA && teamB && teamA === teamB);
+}
+
 function canUsersChat(sender, receiver) {
   if (!sender || !receiver) return false;
   if (sender.id === receiver.id) return false;
@@ -11,7 +17,7 @@ function canUsersChat(sender, receiver) {
   if (sender.role === 'TEAM_MEMBER') {
     if (receiver.role === 'SUPER_USER') return true;
     if (['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'].includes(receiver.role)) {
-      return Boolean(sender.teamId && sender.teamId === receiver.teamId);
+      return sameTeam(sender.teamId, receiver.teamId);
     }
     return false;
   }
@@ -19,11 +25,11 @@ function canUsersChat(sender, receiver) {
   if (sender.role === 'TEAM_MANAGER') {
     if (receiver.role === 'SUPER_USER') return true;
     if (receiver.role === 'TEAM_LEAD') {
-      return Boolean(sender.teamId && sender.teamId === receiver.teamId);
+      return sameTeam(sender.teamId, receiver.teamId);
     }
     if (receiver.role === 'TEAM_MANAGER') return true;
     if (receiver.role === 'TEAM_MEMBER') {
-      return Boolean(sender.teamId && sender.teamId === receiver.teamId);
+      return sameTeam(sender.teamId, receiver.teamId);
     }
     return false;
   }
@@ -31,7 +37,7 @@ function canUsersChat(sender, receiver) {
   if (sender.role === 'TEAM_LEAD') {
     if (receiver.role === 'SUPER_USER' || receiver.role === 'TEAM_LEAD') return true;
     if (receiver.role === 'TEAM_MANAGER' || receiver.role === 'TEAM_MEMBER') {
-      return Boolean(sender.teamId && sender.teamId === receiver.teamId);
+      return sameTeam(sender.teamId, receiver.teamId);
     }
     return false;
   }

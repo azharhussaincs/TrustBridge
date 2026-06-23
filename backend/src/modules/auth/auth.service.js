@@ -61,7 +61,8 @@ class AuthService {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role
+        role: user.role,
+        teamId: user.teamId
       }
     };
   }

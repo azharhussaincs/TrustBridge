@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
@@ -12,6 +12,8 @@ import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getRoleLabel } from '@/lib/roles';
+import { getMessagePreview } from '@/lib/chat/fileMessage';
+import { FileMessage } from '@/components/chat/FileMessage';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
 
@@ -33,6 +35,15 @@ interface Message {
   fileId: string | null;
   createdAt: string;
   read: boolean;
+  uploading?: boolean;
+  failed?: boolean;
+}
+
+interface LastPreview {
+  content: string;
+  createdAt: string;
+  fileId: string | null;
+  senderId: string;
 }
 
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
@@ -82,6 +93,59 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showFileShare, setShowFileShare] = useState(false);
+  const [lastPreviewByUser, setLastPreviewByUser] = useState<Record<string, LastPreview>>({});
+
+  const updateLastPreview = (msg: Message, peerUserId: string) => {
+    setLastPreviewByUser((prev) => ({
+      ...prev,
+      [peerUserId]: {
+        content: msg.content,
+        createdAt: msg.createdAt,
+        fileId: msg.fileId,
+        senderId: msg.senderId,
+      },
+    }));
+  };
+
+  const mergeIncomingMessage = (prev: Message[], incoming: Message): Message[] => {
+    if (prev.some((m) => m.id === incoming.id)) return prev;
+    const tempIdx = prev.findIndex(
+      (m) =>
+        m.id.startsWith('temp') &&
+        m.senderId === incoming.senderId &&
+        m.content === incoming.content &&
+        (m.fileId === incoming.fileId || (!m.fileId && !incoming.fileId))
+    );
+    if (tempIdx >= 0) {
+      const next = [...prev];
+      next[tempIdx] = { ...incoming, uploading: false };
+      return next;
+    }
+    return [...prev, incoming];
+  };
+
+  const isConversationMessage = (msg: Message, peerId: string, selfId: string) =>
+    (msg.senderId === selfId && msg.receiverId === peerId) ||
+    (msg.senderId === peerId && msg.receiverId === selfId);
+
+  const handleFileMessage = (msg: Message) => {
+    if (!selectedUser || !currentUser) return;
+    if (!isConversationMessage(msg, selectedUser.id, currentUser.id)) return;
+
+    setMessages((prev) => {
+      const existingIdx = prev.findIndex((m) => m.id === msg.id);
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx] = msg;
+        return next;
+      }
+      return mergeIncomingMessage(prev, msg).filter((m) => !m.failed);
+    });
+
+    if (!msg.uploading && !msg.failed) {
+      updateLastPreview(msg, selectedUser.id);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -111,38 +175,113 @@ export default function ChatPage() {
 
   useEffect(() => {
     const handleNewMessage = (event: CustomEvent) => {
-      const newMessage = event.detail;
-      
-      if (selectedUser && newMessage.senderId === selectedUser.id) {
-        setMessages(prev => [...prev, newMessage]);
-        if (currentUser && selectedUser) {
-          markAsRead(newMessage.id, newMessage.senderId, currentUser.id);
+      const newMessage = event.detail as Message;
+      const selfId =
+        currentUser?.id ||
+        JSON.parse(localStorage.getItem('user') || '{}').id;
+      if (!selfId) return;
+
+      if (newMessage.receiverId !== selfId && newMessage.senderId !== selfId) return;
+
+      const peerId =
+        newMessage.senderId === selfId ? newMessage.receiverId : newMessage.senderId;
+      updateLastPreview(newMessage, peerId);
+
+      if (selectedUser && isConversationMessage(newMessage, selectedUser.id, selfId)) {
+        setMessages((prev) => mergeIncomingMessage(prev, newMessage));
+        if (newMessage.receiverId === selfId && newMessage.senderId === selectedUser.id) {
+          markAsRead(newMessage.id, newMessage.senderId, selfId);
           clearUnreadForUser(selectedUser.id);
         }
-        toast.success(`💬 New message from ${selectedUser.name}`);
       }
     };
 
+    const handleMessageSent = (event: CustomEvent) => {
+      const sentMessage = event.detail as Message;
+      const selfId = currentUser?.id;
+      if (!selfId || sentMessage.senderId !== selfId) return;
+
+      const peerId = sentMessage.receiverId;
+      updateLastPreview(sentMessage, peerId);
+
+      if (selectedUser && sentMessage.receiverId === selectedUser.id) {
+        setMessages((prev) => mergeIncomingMessage(prev, sentMessage));
+        toast.success('✅ Message sent');
+      }
+    };
+
+    const handleMessageError = (event: CustomEvent) => {
+      const { error } = event.detail as { error?: string };
+      setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp')));
+      toast.error(error || 'Failed to send message');
+    };
+
     window.addEventListener('new-message', handleNewMessage as EventListener);
+    window.addEventListener('message-sent', handleMessageSent as EventListener);
+    window.addEventListener('message-error', handleMessageError as EventListener);
     return () => {
       window.removeEventListener('new-message', handleNewMessage as EventListener);
+      window.removeEventListener('message-sent', handleMessageSent as EventListener);
+      window.removeEventListener('message-error', handleMessageError as EventListener);
     };
   }, [selectedUser, currentUser]);
 
-  useEffect(() => {
-    if (selectedUser && currentUser) {
-      loadMessages(selectedUser.id);
-      clearUnreadForUser(selectedUser.id);
+  const loadMessages = useCallback(async (userId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
+
+      const selfId =
+        currentUser?.id ||
+        JSON.parse(localStorage.getItem('user') || '{}').id;
+      if (!selfId) return;
+
+      const response = await fetch(apiUrl(`/messages?userId=${userId}`), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const loaded = data.data || [];
+        setMessages(loaded);
+
+        if (loaded.length > 0) {
+          const last = loaded[loaded.length - 1] as Message;
+          updateLastPreview(last, userId);
+        }
+
+        const unreadMessages = loaded.filter(
+          (msg: Message) => msg.senderId === userId && !msg.read
+        );
+
+        for (const msg of unreadMessages) {
+          markAsRead(msg.id, userId, selfId);
+        }
+        clearUnreadForUser(userId);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
     }
-  }, [selectedUser]);
+  }, [currentUser?.id, markAsRead, clearUnreadForUser]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (selectedUser?.id && currentUser?.id) {
+      loadMessages(selectedUser.id);
+      clearUnreadForUser(selectedUser.id);
+    } else if (!selectedUser) {
+      setMessages([]);
+    }
+  }, [selectedUser?.id, currentUser?.id, loadMessages, clearUnreadForUser]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const fetchUsers = async (token: string, userData: any) => {
     try {
@@ -209,35 +348,6 @@ export default function ChatPage() {
     }
   };
 
-  const loadMessages = async (userId: string) => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) return;
-
-      const response = await fetch(apiUrl(`/messages?userId=${userId}`), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setMessages(data.data || []);
-        
-        const unreadMessages = data.data.filter(
-          (msg: Message) => msg.senderId === userId && !msg.read
-        );
-        
-        for (const msg of unreadMessages) {
-          markAsRead(msg.id, userId, currentUser.id);
-        }
-        clearUnreadForUser(userId);
-      }
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    }
-  };
-
   const handleMessageInput = (value: string) => {
     setMessage(value);
     if (!selectedUser) return;
@@ -263,7 +373,7 @@ export default function ChatPage() {
     e.preventDefault();
     if (!message.trim() || !selectedUser) return;
     
-    const tempId = Date.now().toString();
+    const tempId = `temp-${Date.now()}`;
     const newMessage: Message = {
       id: tempId,
       content: message,
@@ -274,12 +384,11 @@ export default function ChatPage() {
       read: false
     };
     setMessages(prev => [...prev, newMessage]);
+    updateLastPreview(newMessage, selectedUser.id);
     
     sendMessage(selectedUser.id, message);
     sendTyping(selectedUser.id, false);
     setMessage('');
-    
-    toast.success('✅ Message sent!');
   };
 
   const handleRefresh = () => {
@@ -291,6 +400,26 @@ export default function ChatPage() {
       }
     }
     toast.success('🔄 Chat refreshed');
+  };
+
+  const handlePreviewFile = async (fileId: string, filename: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast.error('Please login again');
+        return;
+      }
+      const response = await fetch(apiUrl(`/files/download/${fileId}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Preview failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    } catch (error: any) {
+      toast.error(`Preview failed: ${error.message}`);
+    }
   };
 
   const handleDownloadFile = async (fileId: string, filename: string) => {
@@ -329,18 +458,8 @@ export default function ChatPage() {
     }
   };
 
-  const extractFileName = (content: string) => {
-    const match = content.match(/📎 (.*?) \(/);
-    return match ? match[1] : 'file';
-  };
-
-  const extractFileSize = (content: string) => {
-    const match = content.match(/\((.*?)\)/);
-    return match ? match[1] : '';
-  };
-
   const isFileMessage = (msg: Message) => {
-    return msg.fileId !== null && msg.fileId !== undefined && msg.fileId !== '';
+    return Boolean(msg.fileId) || msg.content.startsWith('📎');
   };
 
   const isSameTeam = (user: User) => {
@@ -348,6 +467,7 @@ export default function ChatPage() {
   };
 
   const getMessageStatus = (msg: Message) => {
+    if (msg.uploading) return ' ⏳';
     if (msg.senderId !== currentUser?.id) {
       return msg.read ? ' ✓✓' : '';
     }
@@ -355,6 +475,7 @@ export default function ChatPage() {
       const status = messageStatus[msg.id];
       if (status === 'read') return ' ✓✓';
       if (status === 'sent') return ' ✓';
+      if (status === 'saved') return ' ✓';
     }
     if (msg.senderId === currentUser?.id) {
       return msg.read ? ' ✓✓' : ' ✓';
@@ -365,6 +486,16 @@ export default function ChatPage() {
   if (isLoading) {
     return <LoadingSpinner fullScreen message="Loading chat..." />;
   }
+
+  const formatPreviewTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -474,7 +605,11 @@ export default function ChatPage() {
                       type="button"
                       onClick={() => {
                         setSelectedUser(u);
+                        setMessages([]);
                         clearUnreadForUser(u.id);
+                        if (currentUser?.id) {
+                          loadMessages(u.id);
+                        }
                       }}
                       className={cn(
                         'chat-sidebar-item',
@@ -489,6 +624,17 @@ export default function ChatPage() {
                           )}
                         </div>
                         <div className="truncate text-xs text-blue-200/70">{u.username}</div>
+                        {lastPreviewByUser[u.id] && (
+                          <p className="sidebar-preview">
+                            {getMessagePreview(
+                              lastPreviewByUser[u.id].content,
+                              lastPreviewByUser[u.id].fileId
+                            )}
+                            <span className="ml-1 opacity-70">
+                              · {formatPreviewTime(lastPreviewByUser[u.id].createdAt)}
+                            </span>
+                          </p>
+                        )}
                         <Badge variant="role" role={u.role} className="mt-1 text-[10px]">
                           {getRoleLabel(u.role)}
                         </Badge>
@@ -559,43 +705,42 @@ export default function ChatPage() {
                       const isOwn = msg.senderId === currentUser?.id;
                       const isFile = isFileMessage(msg);
                       const status = getMessageStatus(msg);
+                      const senderName = isOwn
+                        ? currentUser?.name
+                        : selectedUser?.name;
                       
                       return (
                         <div
                           key={msg.id}
                           className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}
                         >
-                          <div
-                            className={cn(
-                              'max-w-[75%]',
-                              isOwn ? 'chat-bubble-own' : 'chat-bubble-other'
-                            )}
-                          >
-                            {isFile ? (
-                              <div>
-                                <div className="text-sm">📎 {extractFileName(msg.content)}</div>
-                                <div className="text-[10px] opacity-70">{extractFileSize(msg.content)}</div>
-                                <button
-                                  onClick={() => handleDownloadFile(msg.fileId!, extractFileName(msg.content))}
-                                  className={cn(
-                                    'mt-1.5 rounded px-2.5 py-0.5 text-[11px] text-white',
-                                    isOwn ? 'bg-brand-500 hover:bg-brand-400' : 'bg-emerald-500 hover:bg-emerald-600'
-                                  )}
-                                >
-                                  ⬇️ Download
-                                </button>
-                              </div>
-                            ) : (
+                          {isFile ? (
+                            <FileMessage
+                              message={msg}
+                              isOwn={isOwn}
+                              senderName={!isOwn ? senderName : undefined}
+                              statusText={status}
+                              timeLabel={formatTime(msg.createdAt)}
+                              onDownload={handleDownloadFile}
+                              onPreview={handlePreviewFile}
+                            />
+                          ) : (
+                            <div
+                              className={cn(
+                                'max-w-[75%]',
+                                isOwn ? 'chat-bubble-own' : 'chat-bubble-other'
+                              )}
+                            >
                               <p className="m-0 text-sm">{msg.content}</p>
-                            )}
-                            <p className={cn(
-                              'm-0 mt-0.5 text-right text-[10px]',
-                              isOwn ? 'text-blue-100/80' : 'text-slate-500'
-                            )}>
-                              {formatTime(msg.createdAt)}
-                              {status}
-                            </p>
-                          </div>
+                              <p className={cn(
+                                'm-0 mt-0.5 text-right text-[10px]',
+                                isOwn ? 'text-blue-100/80' : 'text-slate-500'
+                              )}>
+                                {formatTime(msg.createdAt)}
+                                {status}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -604,7 +749,11 @@ export default function ChatPage() {
                 </div>
 
                 {showFileShare && (
-                  <FileSharing receiverId={selectedUser.id} currentUser={currentUser} />
+                  <FileSharing
+                    receiverId={selectedUser.id}
+                    currentUser={currentUser}
+                    onFileMessage={handleFileMessage}
+                  />
                 )}
 
                 <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">

@@ -43,6 +43,7 @@ class UserService {
           username: true,
           name: true,
           role: true,
+          teamId: true,
           isOnline: true,
           lastSeen: true,
           createdAt: true
@@ -65,6 +66,7 @@ class UserService {
           username: true,
           name: true,
           role: true,
+          teamId: true,
           isOnline: true,
           lastSeen: true,
           createdAt: true

@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
+import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 export default function SuperUserDashboard() {
   const router = useRouter();
@@ -21,19 +22,22 @@ export default function SuperUserDashboard() {
   const { unreadCount } = useSocket();
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    setUser(userData);
-
+    const userData = readStoredUser();
+    if (!userData) {
+      clearStoredAuth();
+      router.replace('/login');
+      return;
+    }
     if (userData.role !== 'SUPER_USER') {
-      router.push('/dashboard');
+      router.replace('/dashboard');
       return;
     }
-
+    setUser(userData);
     setLoading(false);
   }, [router]);
 

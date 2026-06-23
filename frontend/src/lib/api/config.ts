@@ -1,12 +1,23 @@
 /**
  * Central API URL configuration.
- * Always use these helpers instead of hardcoded localhost or LAN IPs
- * so the app works from any subnet/machine when NEXT_PUBLIC_API_URL is set.
+ * In the browser, URLs follow window.location.hostname so the same build works at
+ * http://localhost:3000 and http://192.168.x.x:3000 without changing env vars.
  */
 const DEFAULT_API_BASE = 'http://localhost:5000/api';
 const DEFAULT_TIMEOUT_MS = 8000;
+const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || '5000';
+
+function getPageHostname(): string | null {
+  if (typeof window === 'undefined') return null;
+  const host = window.location.hostname;
+  return host || null;
+}
 
 export function getApiBaseUrl(): string {
+  const pageHost = getPageHostname();
+  if (pageHost) {
+    return `http://${pageHost}:${BACKEND_PORT}/api`;
+  }
   return (process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_BASE).replace(/\/$/, '');
 }
 
@@ -16,9 +27,18 @@ export function apiUrl(path: string): string {
   return `${getApiBaseUrl()}${normalized}`;
 }
 
-/** Server origin without /api — for WebSocket fallbacks */
+/** Server origin without /api — for WebSocket */
 export function getServerOrigin(): string {
   return getApiBaseUrl().replace(/\/api\/?$/, '');
+}
+
+/** Socket.io origin — matches page hostname in the browser */
+export function getWebSocketUrl(): string {
+  const pageHost = getPageHostname();
+  if (pageHost) {
+    return `http://${pageHost}:${BACKEND_PORT}`;
+  }
+  return (process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin()).replace(/\/$/, '');
 }
 
 /**
@@ -41,7 +61,7 @@ export async function apiFetch(
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(
-        `Server did not respond within ${timeoutMs / 1000}s. Check that the backend is running and NEXT_PUBLIC_API_URL (${getApiBaseUrl()}) is reachable from this machine.`
+        `Server did not respond within ${timeoutMs / 1000}s. Check that the backend is running on port ${BACKEND_PORT} and reachable at ${getApiBaseUrl()}.`
       );
     }
     throw error;

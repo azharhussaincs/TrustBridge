@@ -1,14 +1,10 @@
 'use client';
 
 export const discoverServer = async () => {
-  // Try to connect to the server using different methods
   const possibleUrls = [
-    // Try the current hostname
     window.location.hostname,
-    // Try localhost
     'localhost',
-    // Try the network IP (will be set by environment)
-    process.env.NEXT_PUBLIC_SERVER_IP || '',
+    '127.0.0.1',
   ];
 
   for (const host of possibleUrls) {
@@ -30,5 +26,5 @@ export const discoverServer = async () => {
   }
   
   // If no server found, use the configured one
-  return process.env.NEXT_PUBLIC_SERVER_IP || window.location.hostname;
+  return window.location.hostname;
 };

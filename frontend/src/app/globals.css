@@ -352,6 +352,15 @@
     background: linear-gradient(135deg, #f43f5e, #e11d48);
     box-shadow: 0 0 12px rgba(244, 63, 94, 0.45);
   }
+
+  .file-message-card {
+    animation: fadeIn 0.25s ease-out;
+  }
+
+  .sidebar-preview {
+    @apply mt-0.5 truncate text-xs;
+    color: rgb(var(--tb-text-muted));
+  }
 }
 
 @layer utilities {

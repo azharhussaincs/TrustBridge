@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getWebSocketUrl } from '@/lib/api/config';
 
 let socket = null;
 let listeners = [];
@@ -8,9 +9,7 @@ export const initializeSocket = (token, userId) => {
     return socket;
   }
 
-import { getServerOrigin } from './config';
-
-  socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin(), {
+  socket = io(getWebSocketUrl(), {
     auth: {
       token: token
     },
