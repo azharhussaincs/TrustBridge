@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useSocket } from '@/context/SocketContext';
+import toast from 'react-hot-toast';
 
 export default function FileSharing({ receiverId, currentUser }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -97,11 +98,13 @@ export default function FileSharing({ receiverId, currentUser }) {
         
         if (response.success) {
           uploadedCount++;
-          // Send message with file ID
+          // Send message with file ID - THIS IS THE KEY PART
           const fileId = response.data.id;
           const fileName = file.name;
           const fileSize = formatFileSize(file.size);
+          // Use the socket to send message with fileId
           sendMessage(receiverId, `📎 ${fileName} (${fileSize})`, true, fileId);
+          toast.success(`📎 File "${fileName}" sent!`);
         } else {
           failedCount++;
           setError(`Failed to upload: ${file.name}`);

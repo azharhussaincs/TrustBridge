@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import toast from 'react-hot-toast';
 
 const SocketContext = createContext();
 
@@ -11,6 +12,7 @@ export function SocketProvider({ children }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState({});
+  const [messageStatus, setMessageStatus] = useState({});
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -20,7 +22,7 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    const newSocket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:5000', {
+    const newSocket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://192.168.18.139:5000', {
       auth: { token }
     });
 
@@ -51,36 +53,65 @@ export function SocketProvider({ children }) {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
+    // Handle new messages with notification
     newSocket.on('new-message', (message) => {
       console.log('📩 New message received:', message);
       
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       
+      // Update unread count
       if (message.receiverId === user.id) {
         setUnreadCount(prev => prev + 1);
         setUnreadMessages(prev => ({
           ...prev,
           [message.senderId]: (prev[message.senderId] || 0) + 1
         }));
+        
+        // Show toast notification
+        const senderName = message.sender?.name || 'Someone';
+        const content = message.content || '📎 File shared';
+        toast.success(`💬 ${senderName}: ${content.substring(0, 30)}${content.length > 30 ? '...' : ''}`);
       }
       
+      // Trigger event for chat page
       window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
     });
 
-    newSocket.on('message-delivered', ({ messageId, receiverId }) => {
-      console.log('✅ Message delivered:', messageId, 'to:', receiverId);
+    // Handle message sent confirmation
+    newSocket.on('message-sent', (message) => {
+      console.log('✅ Message sent:', message);
+      setMessageStatus(prev => ({
+        ...prev,
+        [message.id]: 'sent'
+      }));
     });
 
+    // Handle message delivered (read)
+    newSocket.on('message-read', ({ messageId, receiverId }) => {
+      console.log('📖 Message read:', messageId);
+      setMessageStatus(prev => ({
+        ...prev,
+        [messageId]: 'read'
+      }));
+    });
+
+    // Handle message saved for offline
     newSocket.on('message-saved', ({ messageId, receiverId, status }) => {
       console.log('💾 Message saved for offline delivery:', messageId);
+      setMessageStatus(prev => ({
+        ...prev,
+        [messageId]: 'saved'
+      }));
     });
 
+    // Handle unread count
     newSocket.on('unread-count', ({ count }) => {
       setUnreadCount(count);
     });
 
     setSocket(newSocket);
 
+    // Get initial unread count
     setTimeout(() => {
       if (newSocket && user.id) {
         newSocket.emit('get-unread-count', user.id);
@@ -93,14 +124,17 @@ export function SocketProvider({ children }) {
   }, []);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
-    if (!socket) return;
+    if (!socket) {
+      console.warn('Socket not connected');
+      return;
+    }
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     socket.emit('private-message', {
       senderId: user.id,
       receiverId,
       content,
       isEncrypted,
-      fileId  // Pass file ID if available
+      fileId: fileId || null
     });
   };
 
@@ -146,6 +180,7 @@ export function SocketProvider({ children }) {
       onlineUsers,
       unreadCount,
       unreadMessages,
+      messageStatus,
       sendMessage,
       sendTyping,
       markAsRead,
