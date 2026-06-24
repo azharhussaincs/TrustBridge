@@ -24,8 +24,8 @@ const FILE_SHARING_RULES = {
     description: 'Can share files with Super User, Team Lead, other Team Managers, and Team Members'
   },
   'TEAM_MEMBER': {
-    canShareWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can share files with Super User, Team Lead, Team Manager, and other Team Members'
+    canShareWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can share files with Team Lead, Team Manager, and other Team Members'
   }
 };
 

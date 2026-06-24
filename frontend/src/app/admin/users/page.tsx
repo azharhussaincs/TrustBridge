@@ -14,6 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getRoleBadgeStyle } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { apiUrl, apiFetch, authHeaders } from '@/lib/api/config';
+import { performLogout } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -198,11 +199,7 @@ export default function AdminUsersPage() {
         <Button onClick={() => router.push('/dashboard')} size="sm">
           Dashboard
         </Button>
-        <Button
-          onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }}
-          variant="danger"
-          size="sm"
-        >
+        <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
       </Navbar>

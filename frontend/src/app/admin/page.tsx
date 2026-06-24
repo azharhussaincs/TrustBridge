@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { StatCard } from '@/components/ui/StatCard';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiFetch, authHeaders } from '@/lib/api/config';
+import { performLogout } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -155,11 +156,7 @@ export default function AdminDashboard() {
         <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
           Dashboard
         </Button>
-        <Button
-          onClick={() => { localStorage.removeItem('auth_token'); localStorage.removeItem('user'); router.push('/login'); }}
-          variant="danger"
-          size="sm"
-        >
+        <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
       </Navbar>

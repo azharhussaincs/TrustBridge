@@ -8,12 +8,11 @@ import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
-import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
+import { clearStoredAuth, getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 export default function SuperUserDashboard() {
   const router = useRouter();
@@ -74,16 +73,7 @@ export default function SuperUserDashboard() {
         <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
           Home
         </Button>
-        <Button
-          onClick={() => {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth-changed'));
-            router.push('/login');
-          }}
-          variant="danger"
-          size="sm"
-        >
+        <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
       </Navbar>
@@ -116,9 +106,6 @@ export default function SuperUserDashboard() {
               As Super User you can <strong className="text-white">communicate</strong> with Team Leads and Team Managers only.
               You cannot add, modify, or delete users.
             </p>
-            <Alert variant="warning" className="mt-4">
-              Admin panel and user management are hidden from your role by design (SRS REQ-4.2).
-            </Alert>
             <div className="mt-5">
               <SecurityStrip variant="dark" className="justify-start" />
             </div>

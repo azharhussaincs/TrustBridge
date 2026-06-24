@@ -35,7 +35,7 @@ const COMMUNICATION_RULES = {
     hasAdminPanel: false
   },
   [ROLES.TEAM_MEMBER]: {
-    canCommunicateWith: [ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
+    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
   }
 };

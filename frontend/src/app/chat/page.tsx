@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
 import toast from 'react-hot-toast';
@@ -11,11 +12,12 @@ import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { getRoleLabel } from '@/lib/roles';
+import { getRoleLabel, getRoleHomePath } from '@/lib/roles';
 import { getMessagePreview } from '@/lib/chat/fileMessage';
 import { FileMessage } from '@/components/chat/FileMessage';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
+import { performLogout, readStoredUser } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -60,8 +62,8 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
     description: 'Can chat with Super User, Team Lead, other Team Managers, and Team Members'
   },
   'TEAM_MEMBER': {
-    canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Super User, own Team Lead, own Team Manager, and own Team Members'
+    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with own Team Lead, Team Manager, and Team Members'
   }
 };
 
@@ -92,6 +94,11 @@ export default function ChatPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markAsReadRef = useRef(markAsRead);
+  const clearUnreadRef = useRef(clearUnreadForUser);
+  const loadingForUserRef = useRef<string | null>(null);
+  const selectedUserIdRef = useRef<string | null>(null);
+  const prevMessageCountRef = useRef(0);
   const [showFileShare, setShowFileShare] = useState(false);
   const [lastPreviewByUser, setLastPreviewByUser] = useState<Record<string, LastPreview>>({});
 
@@ -146,6 +153,11 @@ export default function ChatPage() {
       updateLastPreview(msg, selectedUser.id);
     }
   };
+
+  useEffect(() => {
+    markAsReadRef.current = markAsRead;
+    clearUnreadRef.current = clearUnreadForUser;
+  }, [markAsRead, clearUnreadForUser]);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -227,6 +239,9 @@ export default function ChatPage() {
   }, [selectedUser, currentUser]);
 
   const loadMessages = useCallback(async (userId: string) => {
+    if (loadingForUserRef.current === userId) return;
+    loadingForUserRef.current = userId;
+
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
@@ -243,9 +258,19 @@ export default function ChatPage() {
       });
 
       const data = await response.json();
+      if (selectedUserIdRef.current !== userId) return;
+
       if (data.success) {
         const loaded = data.data || [];
-        setMessages(loaded);
+        setMessages((prev) => {
+          if (
+            prev.length === loaded.length &&
+            prev.every((m, i) => m.id === loaded[i]?.id)
+          ) {
+            return prev;
+          }
+          return loaded;
+        });
 
         if (loaded.length > 0) {
           const last = loaded[loaded.length - 1] as Message;
@@ -257,14 +282,23 @@ export default function ChatPage() {
         );
 
         for (const msg of unreadMessages) {
-          markAsRead(msg.id, userId, selfId);
+          markAsReadRef.current(msg.id, userId, selfId);
         }
-        clearUnreadForUser(userId);
+        clearUnreadRef.current(userId);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+    } finally {
+      if (loadingForUserRef.current === userId) {
+        loadingForUserRef.current = null;
+      }
     }
-  }, [currentUser?.id, markAsRead, clearUnreadForUser]);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    selectedUserIdRef.current = selectedUser?.id ?? null;
+    prevMessageCountRef.current = 0;
+  }, [selectedUser?.id]);
 
   useEffect(() => {
     if (selectedUser?.id && currentUser?.id) {
@@ -275,12 +309,16 @@ export default function ChatPage() {
     }
   }, [selectedUser?.id, currentUser?.id, loadMessages, clearUnreadForUser]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = false) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    const count = messages.length;
+    if (count > prevMessageCountRef.current) {
+      scrollToBottom(count - prevMessageCountRef.current === 1);
+    }
+    prevMessageCountRef.current = count;
   }, [messages]);
 
   const fetchUsers = async (token: string, userData: any) => {
@@ -308,7 +346,6 @@ export default function ChatPage() {
           if (!allowedRoles.includes(u.role)) return false;
           
           if (userData.role === 'TEAM_MEMBER') {
-            if (u.role === 'SUPER_USER') return true;
             if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') {
               return u.teamId === userData.teamId;
             }
@@ -506,6 +543,10 @@ export default function ChatPage() {
     return unreadMessages[userId] || 0;
   };
 
+  const homePath = getRoleHomePath(
+    currentUser?.role || readStoredUser()?.role || ''
+  );
+
   return (
     <div className="page-shell flex min-h-screen flex-col">
       <Navbar
@@ -523,27 +564,15 @@ export default function ChatPage() {
           </span>
         }
       >
+        <Link href={homePath} prefetch className="inline-flex">
+          <Button type="button" variant="secondary" size="sm">
+            Dashboard
+          </Button>
+        </Link>
         <Button
           onClick={() => {
-            if (currentUser?.role === 'ADMIN') router.push('/admin');
-            else if (currentUser?.role === 'SUPER_USER') router.push('/super-user');
-            else if (currentUser?.role === 'TEAM_LEAD') router.push('/team-lead');
-            else if (currentUser?.role === 'TEAM_MANAGER') router.push('/team-manager');
-            else if (currentUser?.role === 'TEAM_MEMBER') router.push('/team-member');
-            else router.push('/dashboard');
-          }}
-          variant="secondary"
-          size="sm"
-        >
-          Dashboard
-        </Button>
-        <Button
-          onClick={() => {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth-changed'));
             toast.success('👋 Logged out');
-            router.push('/login');
+            performLogout();
           }}
           variant="danger"
           size="sm"
@@ -604,12 +633,9 @@ export default function ChatPage() {
                       key={u.id}
                       type="button"
                       onClick={() => {
+                        if (selectedUser?.id === u.id) return;
                         setSelectedUser(u);
-                        setMessages([]);
                         clearUnreadForUser(u.id);
-                        if (currentUser?.id) {
-                          loadMessages(u.id);
-                        }
                       }}
                       className={cn(
                         'chat-sidebar-item',

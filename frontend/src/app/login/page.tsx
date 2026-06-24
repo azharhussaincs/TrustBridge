@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/Alert';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
 import { ROLE_ICONS, ROLE_LABELS, getRoleHomePath } from '@/lib/roles';
 import { apiUrl } from '@/lib/api/config';
+import { getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 const ROLE_PREVIEW = [
   { role: 'ADMIN', desc: 'System config & onboarding' },
@@ -25,6 +26,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    const user = readStoredUser();
+    if (token && user) {
+      router.replace(getRoleHomePath(user.role));
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -29,3 +29,9 @@ export function clearStoredAuth(): void {
   localStorage.removeItem('user');
   window.dispatchEvent(new Event('auth-changed'));
 }
+
+/** Clear session and hard-navigate to login (resets all in-memory UI state). */
+export function performLogout(): void {
+  clearStoredAuth();
+  window.location.assign('/login');
+}

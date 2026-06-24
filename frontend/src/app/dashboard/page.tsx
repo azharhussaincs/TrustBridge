@@ -23,7 +23,7 @@ import {
   type UserRole,
 } from '@/lib/roles';
 import { cn } from '@/lib/utils';
-import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
+import { clearStoredAuth, getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -136,11 +136,8 @@ export default function DashboardPage() {
         {getRoleActions()}
         <Button
           onClick={() => {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth-changed'));
             toast.success('Logged out successfully');
-            router.push('/login');
+            performLogout();
           }}
           variant="danger"
           size="sm"

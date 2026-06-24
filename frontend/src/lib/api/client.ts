@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl } from './config';
+import { performLogout } from '@/lib/auth/session';
 
 const api = axios.create({
   headers: {
@@ -23,10 +24,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+      performLogout();
     }
     return Promise.reject(error);
   }

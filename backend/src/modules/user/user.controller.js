@@ -3,9 +3,16 @@ const userService = require('./user.service');
 class UserController {
   async getUsers(req, res) {
     try {
-      const { role, teamId } = req.query;
-      const users = await userService.getUsers({ role, teamId });
-      res.json({ success: true, data: users });
+      const { role, teamId, context } = req.query;
+      const users = await userService.getUsers({ role, teamId, context }, req.user);
+
+      const payload = { success: true, data: users };
+      if (req.user.role === 'TEAM_LEAD') {
+        const team = await userService.ensureLeadTeam(req.user);
+        payload.teamId = team.id;
+      }
+
+      res.json(payload);
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
     }
@@ -25,11 +32,11 @@ class UserController {
   
   async createUser(req, res) {
     try {
-      const user = await userService.createUser(req.body, req.user.role);
-      res.status(201).json({ 
-        success: true, 
-        message: 'User created successfully', 
-        data: user 
+      const user = await userService.createUser(req.body, req.user);
+      res.status(201).json({
+        success: true,
+        message: 'User created successfully',
+        data: user,
       });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -51,7 +58,7 @@ class UserController {
   
   async deleteUser(req, res) {
     try {
-      await userService.deleteUser(req.params.id);
+      await userService.deleteUser(req.params.id, req.user);
       res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });

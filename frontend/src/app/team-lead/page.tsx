@@ -12,6 +12,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { apiFetch, authHeaders } from '@/lib/api/config';
+import { performLogout } from '@/lib/auth/session';
 import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 
@@ -56,15 +57,23 @@ export default function TeamLeadDashboard() {
     setDataLoading(true);
     setFetchError('');
     try {
-      const response = await apiFetch('/users', {
+      const response = await apiFetch('/users?context=team', {
         headers: authHeaders(token),
       });
       const data = await response.json();
       if (data.success) {
-        const members = data.data.filter((u: any) => u.role === 'TEAM_MEMBER');
+        const leadTeamId = data.teamId as string | undefined;
+        if (leadTeamId) {
+          const stored = JSON.parse(localStorage.getItem('user') || '{}');
+          const updatedUser = { ...stored, teamId: leadTeamId };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+
+        const members = data.data.filter((u: { role: string }) => u.role === 'TEAM_MEMBER');
         setTeamMembers(members);
-        
-        const managers = data.data.filter((u: any) => u.role === 'TEAM_MANAGER');
+
+        const managers = data.data.filter((u: { role: string }) => u.role === 'TEAM_MANAGER');
         setTeamManagers(managers);
       }
     } catch (error) {
@@ -246,12 +255,7 @@ export default function TeamLeadDashboard() {
           Dashboard
         </Button>
         <Button
-          onClick={() => {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth-changed'));
-            router.push('/login');
-          }}
+          onClick={() => performLogout()}
           variant="danger"
           size="sm"
         >

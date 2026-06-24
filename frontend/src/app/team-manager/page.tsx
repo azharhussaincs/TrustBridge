@@ -13,7 +13,7 @@ import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 import { ROLE_SHELL_BG } from '@/lib/roles';
 import { cn } from '@/lib/utils';
-import { clearStoredAuth, getAuthToken, readStoredUser } from '@/lib/auth/session';
+import { clearStoredAuth, getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 export default function TeamManagerDashboard() {
   const router = useRouter();
@@ -63,16 +63,7 @@ export default function TeamManagerDashboard() {
         <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
           Home
         </Button>
-        <Button
-          onClick={() => {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth-changed'));
-            router.push('/login');
-          }}
-          variant="danger"
-          size="sm"
-        >
+        <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
       </Navbar>
