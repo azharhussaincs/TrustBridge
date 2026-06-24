@@ -15,6 +15,7 @@ function canUsersChat(sender, receiver) {
   if (!allowed.includes(receiver.role)) return false;
 
   if (sender.role === 'TEAM_MEMBER') {
+    if (receiver.role === 'SUPER_USER') return true;
     if (['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'].includes(receiver.role)) {
       return sameTeam(sender.teamId, receiver.teamId);
     }
@@ -42,7 +43,7 @@ function canUsersChat(sender, receiver) {
   }
 
   if (sender.role === 'SUPER_USER') {
-    return receiver.role === 'TEAM_LEAD' || receiver.role === 'TEAM_MANAGER';
+    return receiver.role === 'TEAM_LEAD' || receiver.role === 'TEAM_MANAGER' || receiver.role === 'TEAM_MEMBER';
   }
 
   return true;

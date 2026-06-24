@@ -12,8 +12,8 @@ const FILE_SHARING_RULES = {
     description: 'Can share files with everyone (System Admin)'
   },
   'SUPER_USER': {
-    canShareWith: ['TEAM_LEAD', 'TEAM_MANAGER'],
-    description: 'Can share files with Team Leads and Team Managers'
+    canShareWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can share files with Team Leads, Team Managers, and Team Members'
   },
   'TEAM_LEAD': {
     canShareWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],

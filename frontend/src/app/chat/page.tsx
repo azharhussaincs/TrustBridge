@@ -50,8 +50,8 @@ interface LastPreview {
 
 const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: string }> = {
   'SUPER_USER': {
-    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER'],
-    description: 'Can only chat with Team Leads and Team Managers'
+    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with Team Leads, Team Managers, and Team Members'
   },
   'TEAM_LEAD': {
     canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
@@ -62,8 +62,8 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
     description: 'Can chat with Executive User, Team Lead, other Team Managers, and Team Members'
   },
   'TEAM_MEMBER': {
-    canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with own Team Lead, Team Manager, and Team Members'
+    canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
+    description: 'Can chat with Executive User, own Team Lead, Team Manager, and Team Members'
   }
 };
 
@@ -350,6 +350,7 @@ export default function ChatPage() {
           if (!allowedRoles.includes(u.role)) return false;
           
           if (userData.role === 'TEAM_MEMBER') {
+            if (u.role === 'SUPER_USER') return true;
             if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') {
               return u.teamId === userData.teamId;
             }
@@ -371,7 +372,7 @@ export default function ChatPage() {
           }
           
           if (userData.role === 'SUPER_USER') {
-            if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER') return true;
+            if (u.role === 'TEAM_LEAD' || u.role === 'TEAM_MANAGER' || u.role === 'TEAM_MEMBER') return true;
             return false;
           }
           
@@ -582,7 +583,7 @@ export default function ChatPage() {
           <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
           {currentUser?.role === 'TEAM_MEMBER' && currentUser?.teamId && (
             <span className="mt-1 block text-xs">
-              👥 You can chat with your Team Lead, Team Manager, and other Team Members from your team.
+              👥 You can chat with the Executive User, your Team Lead, Team Manager, and other Team Members from your team.
             </span>
           )}
           <span className="mt-1 block text-xs">

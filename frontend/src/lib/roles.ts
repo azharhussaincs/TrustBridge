@@ -23,7 +23,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   ADMIN: 'System configuration & user onboarding. No chat access.',
-  SUPER_USER: 'Executive — receives updates from Team Leads & Managers.',
+  SUPER_USER: 'Executive — oversees all teams via chat and file sharing.',
   TEAM_LEAD: 'Manages team staff, chats across leads and own team.',
   TEAM_MANAGER: 'Operational lead — chats with Team Lead and team members.',
   TEAM_MEMBER: 'Standard staff — chats within team boundaries.',
@@ -31,7 +31,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string> = {
   ADMIN: 'Create Executive Users & Team Leads · View audit logs · Full system control',
-  SUPER_USER: 'Chat with Team Leads & Managers only · No user management',
+  SUPER_USER: 'Chat with Team Leads, Managers & Members · No user management',
   TEAM_LEAD: 'CRUD own Team Managers & Members · Chat with leads & own team',
   TEAM_MANAGER: 'Chat with Team Lead & own team members',
   TEAM_MEMBER: 'Chat with Team Manager & team members',

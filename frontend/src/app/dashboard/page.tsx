@@ -69,8 +69,8 @@ export default function DashboardPage() {
         ];
       case 'SUPER_USER':
         return [
-          { href: '/super-user', icon: '👑', title: 'Executive Panel', description: 'Updates from Team Leads & Managers', accent: 'bg-amber-50 text-amber-600 ring-1 ring-amber-100' },
-          { href: '/chat', icon: '💬', title: 'Secure Chat', description: 'Message Team Leads and Managers', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
+          { href: '/super-user', icon: '👑', title: 'Executive Panel', description: 'Organization tree & team overview', accent: 'bg-amber-50 text-amber-600 ring-1 ring-amber-100' },
+          { href: '/chat', icon: '💬', title: 'Secure Chat', description: 'Message Leads, Managers & Members', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       case 'TEAM_LEAD':
         return [

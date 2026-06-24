@@ -19,7 +19,7 @@ const ROLE_HIERARCHY = {
 // CHAT Communication Permissions (who can chat with whom)
 const COMMUNICATION_RULES = {
   [ROLES.SUPER_USER]: {
-    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER],
+    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
   },
   [ROLES.ADMIN]: {
@@ -35,7 +35,7 @@ const COMMUNICATION_RULES = {
     hasAdminPanel: false
   },
   [ROLES.TEAM_MEMBER]: {
-    canCommunicateWith: [ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
+    canCommunicateWith: [ROLES.SUPER_USER, ROLES.TEAM_LEAD, ROLES.TEAM_MANAGER, ROLES.TEAM_MEMBER],
     hasAdminPanel: false
   }
 };
