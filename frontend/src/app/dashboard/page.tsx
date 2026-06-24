@@ -60,35 +60,48 @@ export default function DashboardPage() {
   const shellBg = ROLE_SHELL_BG[role] ?? 'bg-slate-50';
   const showChat = canRoleChat(role);
 
+  const accountAction = {
+    href: '/profile',
+    icon: '🔑',
+    title: 'My Account',
+    description: 'Update your name, username, and password',
+    accent: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+  };
+
   const getQuickActions = () => {
     switch (role) {
       case 'ADMIN':
         return [
+          accountAction,
           { href: '/admin', icon: '⚙️', title: 'Admin Panel', description: 'System overview, hierarchy & audit logs', accent: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200' },
           { href: '/admin/users', icon: '👥', title: 'Manage Users', description: 'Create Executive Users and Team Leads', accent: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100' },
         ];
       case 'SUPER_USER':
         return [
+          accountAction,
           { href: '/super-user', icon: '👑', title: 'Executive Panel', description: 'Organization tree & team overview', accent: 'bg-amber-50 text-amber-600 ring-1 ring-amber-100' },
           { href: '/chat', icon: '💬', title: 'Secure Chat', description: 'Message Leads, Managers & Members', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       case 'TEAM_LEAD':
         return [
+          accountAction,
           { href: '/team-lead', icon: '👥', title: 'Team Lead Panel', description: 'Add managers & members to your team', accent: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100' },
           { href: '/chat', icon: '💬', title: 'Team Chat', description: 'Chat with leads, managers & members', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       case 'TEAM_MANAGER':
         return [
+          accountAction,
           { href: '/team-manager', icon: '📋', title: 'Manager Panel', description: 'Your operational workspace', accent: 'bg-blue-50 text-blue-600 ring-1 ring-blue-100' },
           { href: '/chat', icon: '💬', title: 'Secure Chat', description: 'Encrypted messaging within your team', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       case 'TEAM_MEMBER':
         return [
+          accountAction,
           { href: '/team-member', icon: '👤', title: 'Member Panel', description: 'Your staff workspace', accent: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100' },
           { href: '/chat', icon: '💬', title: 'Secure Chat', description: 'Encrypted messaging within your team', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       default:
-        return [];
+        return [accountAction];
     }
   };
 

@@ -10,6 +10,10 @@ router.use(authMiddleware.authenticate);
 router.get('/', userController.getUsers);
 router.get('/role/:role', userController.getUsersByRole);
 router.get('/team/:teamId', userController.getTeamMembers);
+
+// Any logged-in user can update their own profile
+router.patch('/me/profile', userController.updateOwnProfile);
+
 router.get('/:id', userController.getUserById);
 
 // POST, PUT, DELETE routes (modify users)

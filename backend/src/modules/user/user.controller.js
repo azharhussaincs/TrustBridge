@@ -55,6 +55,19 @@ class UserController {
       res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  async updateOwnProfile(req, res) {
+    try {
+      const user = await userService.updateOwnProfile(req.userId, req.body);
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: user,
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
   
   async deleteUser(req, res) {
     try {

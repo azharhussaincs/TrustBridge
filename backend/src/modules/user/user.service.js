@@ -223,6 +223,69 @@ class UserService {
       throw error;
     }
   }
+
+  async updateOwnProfile(userId, profileData) {
+    const { name, username, currentPassword, newPassword } = profileData;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const data = {};
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (!trimmed) {
+        throw new Error('Name is required');
+      }
+      data.name = trimmed;
+    }
+
+    if (username !== undefined) {
+      const trimmed = String(username).trim();
+      if (!trimmed) {
+        throw new Error('Username is required');
+      }
+      if (trimmed !== user.username) {
+        const existing = await prisma.user.findUnique({ where: { username: trimmed } });
+        if (existing) {
+          throw new Error('Username already taken');
+        }
+        data.username = trimmed;
+      }
+    }
+
+    if (newPassword !== undefined && newPassword !== '') {
+      if (!currentPassword) {
+        throw new Error('Current password is required to set a new password');
+      }
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) {
+        throw new Error('Current password is incorrect');
+      }
+      if (String(newPassword).length < 6) {
+        throw new Error('New password must be at least 6 characters');
+      }
+      data.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new Error('No changes to save');
+    }
+
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        role: true,
+        teamId: true,
+      },
+    });
+  }
   
   async deleteUser(id, requester = null) {
     try {
