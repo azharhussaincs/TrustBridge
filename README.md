@@ -19,6 +19,7 @@
 - [Database Structure](#database-structure)
 - [Role Structure](#role-structure)
 - [Permission Matrix](#permission-matrix)
+- [Step-by-Step Setup on a New System](#step-by-step-setup-on-a-new-system-or-server)
 - [Installation Guide](#installation-guide)
 - [Local Development](#local-development)
 - [Environment Variables](#environment-variables)
@@ -75,13 +76,13 @@ TrustBridge is an enterprise-oriented **LAN-first** communication system designe
 ### Planned / Partial ⚠️
 | Feature | Status |
 |---------|--------|
-| Group / team chat | Not implemented |
+| Group chat | Team Lead (own team) & Executive (any user); notifications |
 | Audit log database | Demo UI only |
 | Notification center | Toasts + badges only |
 | Chunk file transfer | Single POST upload |
 | LAN discovery UI | `discoverServer.js` exists, not wired |
 | Dark/light mode toggle | CSS variables prepared |
-| Settings page | Not implemented |
+| My Account | Any user can update name, username, password |
 
 ---
 
@@ -126,7 +127,7 @@ xdg-open http://localhost:3000/login
 │         │                │                                   │
 │         ▼                ▼                                   │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │ Prisma ORM → SQLite (dev.db)                        │   │
+│  │ Prisma ORM → SQLite file (`backend/prisma/dev.db`)   │   │
 │  │ uploads/ — AES-GCM encrypted files + .iv/.tag       │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -321,7 +322,10 @@ docs/
 | name | String | Team name |
 | leadId | String? | Team Lead reference |
 
-> **Planned tables:** AuditLog, Notification, Session — see [docs/DATABASE.md](docs/DATABASE.md)
+#### ChatGroup / ChatGroupMember / GroupMessage
+Group chat tables — created by Team Lead (within team) or Executive User (cross-team).
+
+> **Planned tables:** AuditLog, Notification (DB), Session — see [docs/DATABASE.md](docs/DATABASE.md)
 
 ### Migrations
 ```bash
@@ -366,7 +370,321 @@ Full matrix: [docs/PERMISSIONS.md](docs/PERMISSIONS.md)
 
 ---
 
+---
+
+## Step-by-Step Setup on a New System or Server
+
+This section is the **full guide** for installing TrustBridge (OpBridge) on a fresh PC, VM, or LAN server. No separate database server (MySQL/PostgreSQL) is required — the app uses **SQLite**, a single file on disk.
+
+### What you need
+
+| Requirement | Version / notes |
+|-------------|-----------------|
+| **Node.js** | 20 LTS or newer ([nodejs.org](https://nodejs.org)) |
+| **npm** | Comes with Node.js |
+| **Git** | To clone the repo (or copy the project folder manually) |
+| **OS** | Linux (Ubuntu), Windows 10/11, or macOS |
+| **Network** | Ports **3000** (frontend) and **5000** (backend) open on the server |
+| **Disk** | ~500 MB for dependencies + space for `dev.db` and `uploads/` |
+
+### Overview — what gets created where
+
+| Item | Location | Purpose |
+|------|----------|---------|
+| SQLite database | `backend/prisma/dev.db` | Users, messages, teams, groups, files metadata |
+| Uploaded files | `backend/uploads/` | AES-GCM encrypted files |
+| Backend config | `backend/.env` | Secrets, port, upload path (**you create this**) |
+| Frontend config | `frontend/.env.local` | Optional port override (**you create this**) |
+| DB schema | `backend/prisma/schema.prisma` | Defines tables (SQLite) |
+| Migrations | `backend/prisma/migrations/` | SQL applied to create/update `dev.db` |
+
+---
+
+### Step 1 — Get the project on the new machine
+
+**Option A — Git clone**
+```bash
+git clone <repository-url> TrustBridge
+cd TrustBridge
+```
+
+**Option B — Copy folder**  
+Copy the entire `TrustBridge` folder (USB, SCP, zip). Do **not** copy `node_modules` if you can avoid it — reinstall dependencies on the new machine instead.
+
+```bash
+# On the new machine, after copy:
+cd TrustBridge
+```
+
+---
+
+### Step 2 — Install Node.js
+
+**Ubuntu / Debian**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node -v    # should show v20.x or higher
+npm -v
+```
+
+**Windows**  
+Download and install **Node.js 20 LTS** from [nodejs.org](https://nodejs.org), then open PowerShell or CMD.
+
+**macOS**
+```bash
+brew install node@20
+```
+
+---
+
+### Step 3 — Backend: install dependencies
+
+```bash
+cd backend
+npm install
+```
+
+---
+
+### Step 4 — Database setup (SQLite)
+
+TrustBridge uses **SQLite**. You do **not** install MySQL, PostgreSQL, or any database service.
+
+1. The database file is **`backend/prisma/dev.db`** (created automatically).
+2. Schema is defined in **`backend/prisma/schema.prisma`**.
+3. Migrations in **`backend/prisma/migrations/`** create and update tables.
+
+**On a new system, run migrations once:**
+
+```bash
+cd backend
+npx prisma migrate deploy
+npx prisma generate
+```
+
+| Command | What it does |
+|---------|----------------|
+| `prisma migrate deploy` | Creates `dev.db` and applies all migrations |
+| `prisma generate` | Builds the Prisma client used by the API |
+| `npm run seed` | Creates demo users (optional, recommended for first run) |
+
+**Seed demo users (password `admin123` for all):**
+```bash
+npm run seed
+```
+
+**Verify database exists:**
+```bash
+ls -la prisma/dev.db
+```
+
+> **Moving data from an old server:** Copy `backend/prisma/dev.db` and `backend/uploads/` to the new machine **after** the same migrations have been applied, or copy them over an empty migrated database. Always back up before replacing.
+
+---
+
+### Step 5 — Create `backend/.env`
+
+Create the file **`backend/.env`** (it is not committed to Git). Copy this template and **change secrets** on any real deployment:
+
+```env
+# Server
+PORT=5000
+NODE_ENV=development
+
+# REQUIRED — change on every new deployment (use long random strings)
+JWT_SECRET=change_me_to_a_long_random_secret_at_least_32_chars
+JWT_EXPIRE=7d
+ENCRYPTION_KEY=change_me_32_chars_minimum_for_aes256
+
+# Optional — Prisma reads path from schema.prisma (file:./dev.db)
+# DATABASE_URL is kept for documentation; schema.prisma controls the SQLite path
+DATABASE_URL="file:./dev.db"
+
+# Optional — reference for CORS / docs (not strictly required for LAN)
+CLIENT_URL=http://localhost:3000
+
+# File uploads
+MAX_FILE_SIZE=10737418240
+UPLOAD_DIR=./uploads
+```
+
+| Variable | Required? | What to change on a new system |
+|----------|-----------|--------------------------------|
+| `JWT_SECRET` | **Yes** | Generate a new random string (never reuse from another server unless migrating sessions) |
+| `ENCRYPTION_KEY` | **Yes** | At least 32 characters; **must stay the same** if you copy `uploads/` from an old server (files are encrypted with this key) |
+| `PORT` | No | Default `5000`; change if port is already in use |
+| `UPLOAD_DIR` | No | Default `./uploads`; use an absolute path on production if needed |
+| `CLIENT_URL` | No | Set to `http://<server-ip>:3000` for documentation |
+| `NODE_ENV` | No | Set to `production` on a live server |
+
+**Generate secrets (Linux/macOS):**
+```bash
+openssl rand -base64 32
+```
+
+---
+
+### Step 6 — Frontend: install dependencies
+
+```bash
+cd ../frontend
+npm install
+```
+
+---
+
+### Step 7 — Create `frontend/.env.local` (optional but recommended)
+
+Create **`frontend/.env.local`**:
+
+```env
+# Backend API port (must match backend PORT)
+NEXT_PUBLIC_BACKEND_PORT=5000
+```
+
+**How the frontend finds the API**
+
+- In the **browser**, the app automatically uses the **same hostname** as the page you opened.
+  - Open `http://localhost:3000` → API calls go to `http://localhost:5000/api`
+  - Open `http://192.168.1.50:3000` → API calls go to `http://192.168.1.50:5000/api`
+- You usually **do not** need `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_WEBSOCKET_URL` unless you use a reverse proxy or split frontend/backend across machines.
+
+**Only if frontend and backend are on different hosts** (uncommon for LAN):
+```env
+NEXT_PUBLIC_API_URL=http://192.168.1.50:5000/api
+NEXT_PUBLIC_WEBSOCKET_URL=http://192.168.1.50:5000
+NEXT_PUBLIC_BACKEND_PORT=5000
+```
+
+---
+
+### Step 8 — Start the application
+
+Use **two terminals** (or run as background services in production).
+
+**Terminal 1 — Backend**
+```bash
+cd backend
+npm run dev          # development (auto-restart)
+# OR
+npm start            # production
+```
+
+**Terminal 2 — Frontend**
+```bash
+cd frontend
+npm run dev:clean    # development (clears Next.js cache)
+# OR for production:
+npm run build
+npm start
+```
+
+Both bind to **all interfaces** (`0.0.0.0`) so other devices on the LAN can connect.
+
+---
+
+### Step 9 — Verify installation
+
+**Backend health**
+```bash
+curl http://localhost:5000/api/health
+```
+
+**Login test**
+```bash
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+**Browser**  
+Open: `http://localhost:3000/login`
+
+Demo accounts (after `npm run seed`):
+
+| Username | Role | Password |
+|----------|------|----------|
+| `admin` | ADMIN | `admin123` |
+| `superuser` | SUPER_USER (Executive) | `admin123` |
+| `teamlead` | TEAM_LEAD | `admin123` |
+| `teammanager` | TEAM_MANAGER | `admin123` |
+| `teammember` | TEAM_MEMBER | `admin123` |
+
+> Change all demo passwords before production use.
+
+---
+
+### Step 10 — Access from other devices on the LAN
+
+1. Find the server IP:
+   ```bash
+   # Linux
+   hostname -I
+   # Windows
+   ipconfig
+   ```
+2. Ensure firewall allows **TCP 3000** and **5000**:
+   ```bash
+   # Ubuntu example
+   sudo ufw allow 3000/tcp
+   sudo ufw allow 5000/tcp
+   ```
+3. On another PC/phone on the same network, open:
+   ```
+   http://<SERVER-IP>:3000/login
+   ```
+4. No `.env` change is needed on the frontend if you use the LAN IP in the browser — API URLs follow the hostname automatically.
+
+---
+
+### What to change when moving to another system
+
+| File / setting | Action |
+|----------------|--------|
+| `backend/.env` → `JWT_SECRET` | **Generate new** on fresh install; keep old only if migrating same deployment |
+| `backend/.env` → `ENCRYPTION_KEY` | **Keep the same** if copying `uploads/` from old server; **new** if starting fresh |
+| `backend/.env` → `PORT` | Change only if 5000 is taken |
+| `backend/.env` → `CLIENT_URL` | Update to new IP/hostname |
+| `frontend/.env.local` → `NEXT_PUBLIC_BACKEND_PORT` | Match backend `PORT` |
+| `backend/prisma/dev.db` | Copy from old server to keep users/messages, or run `migrate deploy` + `seed` for fresh DB |
+| `backend/uploads/` | Copy with `dev.db` to keep shared files |
+| Firewall | Open 3000 + 5000 on new server |
+| `node_modules` | Run `npm install` again in `backend/` and `frontend/` — do not copy |
+
+**Do not copy** `frontend/.next/` — run `npm run build` on the new machine for production.
+
+---
+
+### Quick setup checklist (copy-paste order)
+
+```bash
+# 1. Prerequisites: Node.js 20+ installed
+
+# 2. Backend
+cd backend
+npm install
+# Create backend/.env manually — see Step 5 above
+npx prisma migrate deploy
+npx prisma generate
+npm run seed
+npm run dev
+
+# 3. Frontend (new terminal)
+cd frontend
+npm install
+echo "NEXT_PUBLIC_BACKEND_PORT=5000" > .env.local
+npm run dev:clean
+
+# 4. Browser
+# http://localhost:3000/login  (or http://<LAN-IP>:3000/login)
+```
+
+---
+
 ## Installation Guide
+
+Short summary — see [Step-by-Step Setup on a New System](#step-by-step-setup-on-a-new-system-or-server) for the full guide.
 
 ### 1. Clone repository
 ```bash
@@ -374,23 +692,30 @@ git clone <repository-url> TrustBridge
 cd TrustBridge
 ```
 
-### 2. Install backend
+### 2. Backend — install, configure `.env`, database
 ```bash
 cd backend
 npm install
+# Create backend/.env — see Step 5 in the full setup guide
+npx prisma migrate deploy
 npx prisma generate
 npm run seed
 ```
 
-### 3. Install frontend
+### 3. Frontend — install, optional `.env.local`
 ```bash
 cd ../frontend
 npm install
+# Create frontend/.env.local with NEXT_PUBLIC_BACKEND_PORT=5000
 ```
 
-### 4. Configure environment (see below)
+### 4. Start both services
+```bash
+# Terminal 1: cd backend && npm run dev
+# Terminal 2: cd frontend && npm run dev:clean
+```
 
-### 5. Start services (see Running Full Stack)
+### 5. Open `http://localhost:3000/login` (or `http://<LAN-IP>:3000/login`)
 
 ---
 
@@ -410,26 +735,31 @@ Open http://localhost:3000/login
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend (`backend/.env`) — **create this file yourself**
+
 | Variable | Required | Example | Description |
 |----------|----------|---------|-------------|
-| `PORT` | No | `5000` | API port |
-| `JWT_SECRET` | **Yes** | random string | JWT signing key |
+| `PORT` | No | `5000` | API + WebSocket port |
+| `NODE_ENV` | No | `development` / `production` | Runtime mode |
+| `JWT_SECRET` | **Yes** | long random string | Signs login tokens — **change on every deployment** |
 | `JWT_EXPIRE` | No | `7d` | Token lifetime |
-| `ENCRYPTION_KEY` | **Yes** | 32+ chars | AES-256-GCM key |
-| `DATABASE_URL` | No | `sqlite:./dev.db` | Prisma connection |
-| `CLIENT_URL` | No | `http://IP:3000` | CORS reference |
-| `MAX_FILE_SIZE` | No | `10737418240` | Max upload bytes |
-| `UPLOAD_DIR` | No | `./uploads` | File storage path |
+| `ENCRYPTION_KEY` | **Yes** | 32+ characters | AES-256-GCM file encryption — **keep when migrating uploads** |
+| `DATABASE_URL` | No | `file:./dev.db` | Documented; actual path is in `prisma/schema.prisma` |
+| `CLIENT_URL` | No | `http://192.168.1.10:3000` | Optional reference |
+| `MAX_FILE_SIZE` | No | `10737418240` | Max upload size in bytes (10 GB) |
+| `UPLOAD_DIR` | No | `./uploads` | Encrypted file storage folder |
 
-### Frontend (`frontend/.env.local`)
+**Template** — see [Step 5 — Create backend/.env](#step-5--create-backendenv).
+
+### Frontend (`frontend/.env.local`) — **create this file yourself**
+
 | Variable | Required | Example | Description |
 |----------|----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | **Yes** | `http://192.168.1.10:5000/api` | REST API base |
-| `NEXT_PUBLIC_WEBSOCKET_URL` | **Yes** | `http://192.168.1.10:5000` | Socket.io origin |
-| `NEXT_PUBLIC_SERVER_IP` | No | `192.168.1.10` | LAN discovery helper |
+| `NEXT_PUBLIC_BACKEND_PORT` | Recommended | `5000` | Must match backend `PORT` |
+| `NEXT_PUBLIC_API_URL` | No | `http://192.168.1.10:5000/api` | Only if API is on a **different host** than the browser |
+| `NEXT_PUBLIC_WEBSOCKET_URL` | No | `http://192.168.1.10:5000` | Only if socket server is on a **different host** |
 
-> **Important:** Use your server's **LAN IP**, not `localhost`, when accessing from other devices.
+> **LAN tip:** If frontend and backend run on the **same machine**, open the app as `http://<that-machine-IP>:3000` — API and WebSocket URLs are built from the browser hostname automatically. You only need `NEXT_PUBLIC_BACKEND_PORT=5000`.
 
 ---
 
@@ -512,32 +842,58 @@ cd backend && npm test   # Not yet implemented — exits 1
 
 ## LAN Deployment
 
-See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for full details.
+See [Step-by-Step Setup — Step 10](#step-10--access-from-other-devices-on-the-lan) and [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
 
-1. Find server IP: `hostname -I`
-2. Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WEBSOCKET_URL` to `http://<IP>:5000`
-3. Open firewall ports 3000 and 5000
-4. Clients browse to `http://<IP>:3000/login`
+1. Find server IP: `hostname -I` (Linux) or `ipconfig` (Windows)
+2. Ensure `NEXT_PUBLIC_BACKEND_PORT=5000` in `frontend/.env.local`
+3. Open firewall ports **3000** and **5000**
+4. Clients browse to `http://<IP>:3000/login` (API follows hostname automatically)
 
 ---
 
 ## Windows Deployment
 
-1. Install Node.js 20 LTS
-2. Clone repo to `C:\TrustBridge`
-3. Configure `frontend\.env.local` with your IPv4 from `ipconfig`
-4. Allow ports 3000/5000 in Windows Firewall
-5. Run `npm start` in backend and `npm run build && npm start` in frontend
+1. Install **Node.js 20 LTS** from [nodejs.org](https://nodejs.org)
+2. Clone or copy repo to e.g. `C:\TrustBridge`
+3. Create `backend\.env` (see [Step 5](#step-5--create-backendenv))
+4. In PowerShell:
+   ```powershell
+   cd C:\TrustBridge\backend
+   npm install
+   npx prisma migrate deploy
+   npx prisma generate
+   npm run seed
+   npm run dev
+   ```
+5. Second PowerShell window:
+   ```powershell
+   cd C:\TrustBridge\frontend
+   npm install
+   echo NEXT_PUBLIC_BACKEND_PORT=5000 > .env.local
+   npm run dev:clean
+   ```
+6. Allow ports **3000** and **5000** in Windows Firewall
+7. Open `http://localhost:3000/login` or `http://<your-ipv4>:3000/login`
 
 ---
 
 ## Ubuntu Deployment
 
-1. Install Node.js 20 via NodeSource
-2. Deploy to `/opt/TrustBridge`
-3. Create systemd service for backend
-4. Use PM2 or systemd for frontend
-5. Configure `ufw allow 3000,5000/tcp`
+1. Install Node.js 20 (see [Step 2](#step-2--install-nodejs))
+2. Deploy to `/opt/TrustBridge` or `~/TrustBridge`
+3. Follow [Step-by-Step Setup](#step-by-step-setup-on-a-new-system-or-server) through database and `.env`
+4. Production process managers:
+   ```bash
+   # Backend with PM2
+   cd backend && npm install -g pm2
+   pm2 start server.js --name trustbridge-api
+   pm2 save
+
+   # Frontend
+   cd frontend && npm run build
+   pm2 start npm --name trustbridge-web -- start
+   ```
+5. Firewall: `sudo ufw allow 3000/tcp && sudo ufw allow 5000/tcp`
 
 Full guide: [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
 
@@ -616,11 +972,14 @@ Full audit: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
 
 | Problem | Solution |
 |---------|----------|
-| Chat shows offline | Check `NEXT_PUBLIC_WEBSOCKET_URL`; restart backend |
+| Chat shows offline | Backend must run on `0.0.0.0:5000`; check firewall |
+| `Failed to fetch` on login | Backend not running or wrong port; check `curl http://localhost:5000/api/health` |
+| `Failed to fetch` on My Account save | Restart backend after CORS update; `PATCH` must be allowed |
+| Login timeout / Prisma error | SQLite lock — restart backend; only one `npm run dev` for backend |
 | 500 on frontend pages | `rm -rf frontend/.next && npm run dev:clean` |
-| Login works, no users in chat | Verify backend running; check API URL |
+| Login works, no users in chat | Verify backend running; open app via same hostname as API |
 | Prisma client error | `npx prisma generate` + restart backend |
-| Port in use | `lsof -i :5000` and kill duplicate process |
+| Port in use | `lsof -i :5000` (Linux) and stop duplicate process |
 
 ---
 
@@ -646,7 +1005,13 @@ Default password: `admin123`
 Token missing or expired. Log out and log in again.
 
 ### `Connection error` on login
-`NEXT_PUBLIC_API_URL` points to wrong IP. Update `.env.local` and restart frontend.
+Backend not reachable. Start backend, check port 5000, firewall, and `curl http://localhost:5000/api/health`.
+
+### `Failed to fetch` on profile save
+Backend CORS must allow `PATCH`. Ensure you run the latest `backend/src/app.js` and restart the server.
+
+### Database locked (SQLite)
+Only run **one** backend instance. Stop duplicate `node server.js` / `nodemon` processes and restart.
 
 ---
 
@@ -667,9 +1032,14 @@ Token missing or expired. Log out and log in again.
 | GET | `/messages` | Bearer | Chat history |
 | GET | `/messages/unread/count` | Bearer | Unread summary |
 | POST | `/files/upload` | Bearer | Upload encrypted file |
+| PATCH | `/users/me/profile` | Bearer | Update own name, username, password |
+| GET | `/groups` | Bearer | List user's group chats |
+| POST | `/groups` | Bearer (Lead/Exec) | Create group |
+| GET | `/groups/:id/messages` | Bearer | Group message history |
+| POST | `/groups/:id/members` | Bearer (Lead/Exec) | Add group member |
 | GET | `/files/download/:id` | Bearer | Download decrypted file |
 
-**WebSocket events:** `register-user`, `private-message`, `typing`, `mark-read`, `get-unread-count`
+**WebSocket events:** `register-user`, `private-message`, `group-message`, `join-group-rooms`, `typing`, `mark-read`, `get-unread-count`
 
 ---
 
@@ -678,9 +1048,9 @@ Token missing or expired. Log out and log in again.
 | Phase | Items |
 |-------|-------|
 | **Wave B** | AuditLog, Notifications, rate limiting, account lock |
-| **Wave C** | Group chat, reactions, reply, search, message status enum |
+| **Wave C** | Reactions, reply, search, message status enum |
 | **Wave D** | Chunk upload, file preview, LAN discovery UI, QR connect |
-| **Wave E** | Automated tests, Docker Compose, PostgreSQL migration |
+| **Wave E** | Automated tests, Docker Compose, optional PostgreSQL migration |
 
 See [docs/PHASE0_IMPLEMENTATION_PLAN.md](docs/PHASE0_IMPLEMENTATION_PLAN.md)
 
