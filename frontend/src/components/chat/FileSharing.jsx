@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
+import { getAuthToken } from '@/lib/auth/session';
 import { buildFileMessageContent } from '@/lib/chat/fileMessage';
 
 export default function FileSharing({ receiverId, currentUser, onFileMessage }) {
@@ -76,7 +77,7 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
       formData.append('isEncrypted', 'true');
 
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = getAuthToken();
         if (!token) {
           setError('Not authenticated. Please login again.');
           break;

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { OpBridgeLogo } from '@/components/layout/OpBridgeLogo';
 import {
   getRoleIcon,
   getRoleLabel,
@@ -14,9 +15,10 @@ interface RoleHeroProps {
   username?: string;
   className?: string;
   dark?: boolean;
+  showBrandLogo?: boolean;
 }
 
-export function RoleHero({ role, name, username, className, dark }: RoleHeroProps) {
+export function RoleHero({ role, name, username, className, dark, showBrandLogo }: RoleHeroProps) {
   const userRole = role as UserRole;
   const gradient = ROLE_GRADIENTS[userRole] ?? 'from-brand-600 to-brand-800';
 
@@ -51,8 +53,14 @@ export function RoleHero({ role, name, username, className, dark }: RoleHeroProp
           </p>
         </div>
         <div className="shrink-0">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 text-4xl backdrop-blur-md ring-1 ring-white/25 sm:h-24 sm:w-24 sm:text-5xl">
-            {getRoleIcon(role)}
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-md ring-1 ring-white/25 sm:h-24 sm:w-24">
+            {showBrandLogo ? (
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white p-1.5 sm:h-16 sm:w-16">
+                <OpBridgeLogo size={56} className="h-full w-full" />
+              </div>
+            ) : (
+              <span className="text-4xl sm:text-5xl">{getRoleIcon(role)}</span>
+            )}
           </div>
         </div>
       </div>

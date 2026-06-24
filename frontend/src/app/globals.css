@@ -183,6 +183,37 @@
     border-bottom: none;
   }
 
+  .table-light {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .table-light thead tr {
+    @apply bg-slate-100;
+  }
+
+  .table-light th {
+    @apply px-4 py-3 text-left font-semibold text-slate-900;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .table-light td {
+    @apply px-4 py-3 text-slate-900;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .table-light tbody tr:nth-child(even),
+  .table-light tbody tr:nth-child(odd) {
+    @apply bg-white;
+  }
+
+  .table-light tbody tr:hover {
+    @apply bg-slate-50;
+  }
+
+  .table-light tbody tr:last-child td {
+    border-bottom: none;
+  }
+
   /* Organization hierarchy on dark cards */
   .hierarchy-root {
     @apply space-y-3 font-mono text-sm;
@@ -227,7 +258,7 @@
   }
 
   .card-elevated-light {
-    @apply rounded-2xl border border-blue-100/80 bg-white/95 text-slate-900 shadow-elevated backdrop-blur-xl;
+    @apply rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-card;
   }
 
   .glass-card {
@@ -323,15 +354,13 @@
   }
 
   .chat-bubble-own {
-    @apply rounded-2xl rounded-br-md px-3.5 py-2 text-sm text-white break-words shadow-md;
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    @apply rounded-2xl rounded-br-md px-3.5 py-2 text-sm text-slate-900 break-words shadow-sm;
+    background: #dbeafe;
   }
 
   .chat-bubble-other {
-    @apply rounded-2xl rounded-bl-md border px-3.5 py-2 text-sm break-words shadow-sm;
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(147, 197, 253, 0.5);
-    color: #0f172a;
+    @apply rounded-2xl rounded-bl-md px-3.5 py-2 text-sm text-slate-900 break-words shadow-sm;
+    background: #e5e7eb;
   }
 
   .chat-sidebar-item {

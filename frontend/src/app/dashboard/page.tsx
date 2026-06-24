@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { OpBridgeLogo } from '@/components/layout/OpBridgeLogo';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
@@ -124,7 +125,8 @@ export default function DashboardPage() {
       <Navbar
         title={
           <span className="flex items-center gap-2">
-            {getRoleIcon(role)} OPBridge
+            <OpBridgeLogo size={28} className="rounded-md" />
+            OPBridge
           </span>
         }
         subtitle={
@@ -147,44 +149,44 @@ export default function DashboardPage() {
       </Navbar>
 
       <PageContainer className="space-y-6">
-        <RoleHero role={role} name={user.name} username={user.username} />
+        <RoleHero role={role} name={user.name} username={user.username} showBrandLogo />
 
         <QuickActionGrid actions={getQuickActions()} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2" padding="lg">
-            <h3 className="text-lg font-semibold text-white">Your workspace</h3>
-            <p className="mt-2 text-sm leading-relaxed text-blue-100/85">
+          <Card variant="light" className="lg:col-span-2" padding="lg">
+            <h3 className="text-lg font-semibold text-slate-900">Your workspace</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
               OPBridge renders a distinct interface for each role. UI elements you cannot access are hidden —
               enforcing Zero Trust at the presentation layer.
             </p>
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-blue-900/40 p-4 ring-1 ring-blue-400/20">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Display name</p>
-                <p className="mt-1 font-medium text-white">{user.name}</p>
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Display name</p>
+                <p className="mt-1 font-medium text-slate-900">{user.name}</p>
               </div>
-              <div className="rounded-xl bg-blue-900/40 p-4 ring-1 ring-blue-400/20">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Username</p>
-                <p className="mt-1 font-medium text-white">@{user.username}</p>
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Username</p>
+                <p className="mt-1 font-medium text-slate-900">@{user.username}</p>
               </div>
-              <div className="rounded-xl bg-blue-900/40 p-4 ring-1 ring-blue-400/20">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Role</p>
-                <p className="mt-1 font-medium text-white">{getRoleLabel(role)}</p>
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Role</p>
+                <p className="mt-1 font-medium text-slate-900">{getRoleLabel(role)}</p>
               </div>
-              <div className="rounded-xl bg-blue-900/40 p-4 ring-1 ring-blue-400/20">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Chat access</p>
-                <p className="mt-1 font-medium text-white">{showChat ? '✅ Enabled' : '🚫 Disabled (Admin)'}</p>
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Chat access</p>
+                <p className="mt-1 font-medium text-slate-900">{showChat ? '✅ Enabled' : '🚫 Disabled (Admin)'}</p>
               </div>
             </div>
           </Card>
 
-          <Card padding="lg" className="flex flex-col justify-between">
+          <Card variant="light" padding="lg" className="flex flex-col justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-white">Security status</h3>
-              <p className="mt-2 text-sm text-blue-200/80">All traffic encrypted end-to-end over LAN.</p>
+              <h3 className="text-lg font-semibold text-slate-900">Security status</h3>
+              <p className="mt-2 text-sm text-slate-600">All traffic encrypted end-to-end over LAN.</p>
             </div>
             <div className="mt-5">
-              <SecurityStrip variant="dark" className="justify-start" />
+              <SecurityStrip variant="light" className="justify-start" />
             </div>
           </Card>
         </div>

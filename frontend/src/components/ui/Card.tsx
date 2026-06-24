@@ -4,6 +4,7 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  variant?: 'dark' | 'light';
 }
 
 const paddingMap = {
@@ -13,11 +14,12 @@ const paddingMap = {
   lg: 'p-8',
 };
 
-export function Card({ children, className, padding = 'md' }: CardProps) {
+export function Card({ children, className, padding = 'md', variant = 'dark' }: CardProps) {
   return (
     <div
       className={cn(
-        'card-elevated animate-fade-in',
+        variant === 'light' ? 'card-elevated-light' : 'card-elevated',
+        'animate-fade-in',
         paddingMap[padding],
         className
       )}
@@ -32,15 +34,18 @@ interface CardHeaderProps {
   description?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
+  variant?: 'dark' | 'light';
 }
 
-export function CardHeader({ title, description, action, className }: CardHeaderProps) {
+export function CardHeader({ title, description, action, className, variant = 'dark' }: CardHeaderProps) {
+  const isLight = variant === 'light';
+
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-4 mb-5', className)}>
       <div>
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <h2 className={cn('text-lg font-semibold', isLight ? 'text-slate-900' : 'text-white')}>{title}</h2>
         {description && (
-          <p className="mt-1 text-sm text-blue-200/80">{description}</p>
+          <p className={cn('mt-1 text-sm', isLight ? 'text-slate-600' : 'text-blue-200/80')}>{description}</p>
         )}
       </div>
       {action}

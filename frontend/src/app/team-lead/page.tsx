@@ -13,7 +13,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { apiFetch, authHeaders } from '@/lib/api/config';
-import { performLogout } from '@/lib/auth/session';
+import { getAuthToken, performLogout, readStoredUser, updateStoredUser } from '@/lib/auth/session';
 import { useSocket } from '@/context/SocketContext';
 import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 
@@ -37,12 +37,16 @@ export default function TeamLeadDashboard() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) {
       router.push('/login');
       return;
     }
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userData = readStoredUser();
+    if (!userData) {
+      router.push('/login');
+      return;
+    }
     setUser(userData);
     
     if (userData.role !== 'TEAM_LEAD') {
@@ -65,10 +69,11 @@ export default function TeamLeadDashboard() {
       if (data.success) {
         const leadTeamId = data.teamId as string | undefined;
         if (leadTeamId) {
-          const stored = JSON.parse(localStorage.getItem('user') || '{}');
+          const stored = readStoredUser();
+          if (!stored) return;
           const updatedUser = { ...stored, teamId: leadTeamId };
           setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
+          updateStoredUser(updatedUser);
         }
 
         const members = data.data.filter((u: { role: string }) => u.role === 'TEAM_MEMBER');
@@ -90,7 +95,7 @@ export default function TeamLeadDashboard() {
     e.preventDefault();
     setMessage(null);
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
 
     try {
@@ -119,7 +124,7 @@ export default function TeamLeadDashboard() {
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (!confirm(`Are you sure you want to remove ${userName} from the team?`)) return;
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
 
     try {
@@ -150,8 +155,8 @@ export default function TeamLeadDashboard() {
     _roleBadgeClass: string,
     loading: boolean
   ) => (
-    <div className="table-wrap">
-      <table className="table-dark">
+    <div className="table-wrap border-slate-200">
+      <table className="table-light">
         <thead>
           <tr>
             <th>Name</th>
@@ -164,20 +169,20 @@ export default function TeamLeadDashboard() {
           {loading ? (
             <tr>
               <td colSpan={4} className="px-4 py-12 text-center">
-                <LoadingSpinner message="Loading team..." size="sm" />
+                <LoadingSpinner message="Loading team..." size="sm" className="[&_p]:text-slate-600" />
               </td>
             </tr>
           ) : users.length === 0 ? (
             <tr>
               <td colSpan={4}>
-                <EmptyState icon="👥" title={emptyMessage} className="py-8" />
+                <EmptyState icon="👥" title={emptyMessage} className="py-8 [&_p]:text-slate-600" />
               </td>
             </tr>
           ) : (
             users.map((member) => (
               <tr key={member.id}>
                 <td>{member.name}</td>
-                <td className="text-card-muted">{member.username}</td>
+                <td className="text-slate-600">{member.username}</td>
                 <td>
                   <Badge variant="role" role={member.role}>{member.role}</Badge>
                 </td>
@@ -273,7 +278,7 @@ export default function TeamLeadDashboard() {
               variant="outline"
               className="mt-2"
               onClick={() => {
-                const token = localStorage.getItem('auth_token');
+                const token = getAuthToken();
                 if (token) fetchTeamData(token);
               }}
             >
@@ -292,15 +297,16 @@ export default function TeamLeadDashboard() {
           <strong>Team Lead Permissions:</strong> You can add <strong>Team Members</strong> and <strong>Team Managers</strong> for your team.
         </Alert>
 
-        <Card>
+        <Card variant="light">
           <CardHeader
+            variant="light"
             title="👥 Team Management"
             description="Manage your team members and managers."
           />
 
           <div className="mb-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="heading-section">
+              <h3 className="text-base font-semibold text-slate-900">
                 Team Members ({teamMembers.length})
               </h3>
               <Button
@@ -324,7 +330,7 @@ export default function TeamLeadDashboard() {
 
           <div>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="heading-section">
+              <h3 className="text-base font-semibold text-slate-900">
                 Team Managers ({teamManagers.length})
               </h3>
               <Button

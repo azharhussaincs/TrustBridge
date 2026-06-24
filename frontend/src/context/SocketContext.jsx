@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { apiUrl, authHeaders, getWebSocketUrl } from '@/lib/api/config';
+import { getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 const SocketContext = createContext();
 
@@ -33,7 +34,7 @@ export function SocketProvider({ children }) {
   const connectedAtRef = useRef(0);
 
   const syncUnreadFromApi = useCallback(async () => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
     try {
       const summary = await fetchUnreadSummary(token);
@@ -55,8 +56,8 @@ export function SocketProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = getAuthToken();
+    const user = readStoredUser() || {};
 
     if (!token || !user.id) {
       setSocket(null);
@@ -94,7 +95,7 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('new-message', (message) => {
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUser = readStoredUser() || {};
 
       if (message.receiverId === currentUser.id) {
         setUnreadCount((prev) => prev + 1);
@@ -159,7 +160,7 @@ export function SocketProvider({ children }) {
       console.warn('Socket not connected');
       return;
     }
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = readStoredUser() || {};
     socket.emit('private-message', {
       senderId: user.id,
       receiverId,
@@ -171,7 +172,7 @@ export function SocketProvider({ children }) {
 
   const sendTyping = (receiverId, isTyping) => {
     if (!socket) return;
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = readStoredUser() || {};
     socket.emit('typing', {
       senderId: user.id,
       receiverId,

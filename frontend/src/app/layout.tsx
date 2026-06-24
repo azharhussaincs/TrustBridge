@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { AuthBootstrap } from '@/components/auth/AuthBootstrap';
 import { SocketProvider } from '@/context/SocketContext';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import './globals.css';
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body className="font-sans">
         <SocketProvider>
+          <AuthBootstrap />
           <ToastProvider />
           {children}
         </SocketProvider>

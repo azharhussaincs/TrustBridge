@@ -10,7 +10,7 @@ import { Alert } from '@/components/ui/Alert';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
 import { ROLE_ICONS, ROLE_LABELS, getRoleHomePath } from '@/lib/roles';
 import { apiUrl } from '@/lib/api/config';
-import { getAuthToken, readStoredUser } from '@/lib/auth/session';
+import { getAuthToken, readStoredUser, saveStoredAuth, validateStoredSession } from '@/lib/auth/session';
 
 const ROLE_PREVIEW = [
   { role: 'ADMIN', desc: 'System config & onboarding' },
@@ -31,9 +31,11 @@ export default function LoginPage() {
   useEffect(() => {
     const token = getAuthToken();
     const user = readStoredUser();
-    if (token && user) {
-      router.replace(getRoleHomePath(user.role));
-    }
+    if (!token || !user) return;
+
+    validateStoredSession().then((valid) => {
+      if (valid) router.replace(getRoleHomePath(user.role));
+    });
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,9 +53,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.success) {
-        localStorage.setItem('auth_token', data.data.token);
-        localStorage.setItem('user', JSON.stringify(data.data.user));
-        window.dispatchEvent(new Event('auth-changed'));
+        saveStoredAuth(data.data.token, data.data.user);
         toast.success('Welcome back!');
         router.push(getRoleHomePath(data.data.user.role));
       } else {

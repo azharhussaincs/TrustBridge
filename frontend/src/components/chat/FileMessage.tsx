@@ -43,29 +43,29 @@ export function FileMessage({
       className={cn(
         'file-message-card max-w-[280px] rounded-2xl border p-3 shadow-md',
         isOwn
-          ? 'border-blue-400/30 bg-gradient-to-br from-blue-600 to-blue-800 text-white'
-          : 'border-blue-200/60 bg-white text-slate-900'
+          ? 'border-blue-200 bg-blue-100 text-slate-900'
+          : 'border-slate-200 bg-gray-200 text-slate-900'
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={cn(
             'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl',
-            isOwn ? 'bg-white/15' : 'bg-blue-50'
+            isOwn ? 'bg-blue-200/60' : 'bg-slate-300/50'
           )}
           aria-hidden="true"
         >
           {message.uploading ? '⏳' : meta.icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className={cn('truncate text-sm font-semibold', isOwn ? 'text-white' : 'text-slate-900')}>
+          <p className={cn('truncate text-sm font-semibold', isOwn ? 'text-slate-900' : 'text-slate-900')}>
             {meta.fileName}
           </p>
-          <p className={cn('text-xs', isOwn ? 'text-blue-100' : 'text-slate-500')}>
+          <p className={cn('text-xs', isOwn ? 'text-slate-600' : 'text-slate-600')}>
             {message.uploading ? 'Uploading...' : meta.fileType}
           </p>
           {meta.fileSize && (
-            <p className={cn('text-[11px]', isOwn ? 'text-blue-200/90' : 'text-slate-400')}>
+            <p className={cn('text-[11px]', isOwn ? 'text-slate-500' : 'text-slate-500')}>
               {meta.fileSize}
             </p>
           )}
@@ -99,7 +99,7 @@ export function FileMessage({
             ⬇️ Download
           </Button>
         ) : message.uploading ? (
-          <span className={cn('text-xs italic', isOwn ? 'text-blue-100' : 'text-slate-500')}>
+          <span className={cn('text-xs italic', isOwn ? 'text-slate-600' : 'text-slate-500')}>
             ⏳ Uploading...
           </span>
         ) : null}
@@ -108,7 +108,7 @@ export function FileMessage({
       <p
         className={cn(
           'm-0 mt-2 text-right text-[10px]',
-          isOwn ? 'text-blue-100/80' : 'text-slate-400'
+          isOwn ? 'text-slate-500' : 'text-slate-500'
         )}
       >
         {timeLabel}

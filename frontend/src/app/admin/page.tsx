@@ -13,7 +13,7 @@ import { Alert } from '@/components/ui/Alert';
 import { StatCard } from '@/components/ui/StatCard';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiFetch, authHeaders } from '@/lib/api/config';
-import { performLogout } from '@/lib/auth/session';
+import { getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -39,10 +39,10 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = getAuthToken();
+    const user = readStoredUser();
     
-    if (!token) {
+    if (!token || !user) {
       router.push('/login');
       return;
     }
@@ -169,7 +169,7 @@ export default function AdminDashboard() {
               variant="outline"
               className="mt-2"
               onClick={() => {
-                const token = localStorage.getItem('auth_token');
+                const token = getAuthToken();
                 if (token) loadDashboard(token);
               }}
             >

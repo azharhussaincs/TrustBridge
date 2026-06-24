@@ -15,7 +15,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getRoleBadgeStyle, getRoleLabel } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { apiUrl, apiFetch, authHeaders } from '@/lib/api/config';
-import { performLogout } from '@/lib/auth/session';
+import { getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -47,10 +47,10 @@ export default function AdminUsersPage() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = getAuthToken();
+    const user = readStoredUser();
     
-    if (!token) {
+    if (!token || !user) {
       router.push('/login');
       return;
     }
@@ -90,7 +90,7 @@ export default function AdminUsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
 
     try {
@@ -123,7 +123,7 @@ export default function AdminUsersPage() {
     
     if (!confirm(`Are you sure you want to delete ${userName}?`)) return;
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
 
     try {
@@ -155,7 +155,7 @@ export default function AdminUsersPage() {
       return;
     }
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) return;
 
     try {
@@ -217,7 +217,7 @@ export default function AdminUsersPage() {
               variant="outline"
               className="mt-2"
               onClick={() => {
-                const token = localStorage.getItem('auth_token');
+                const token = getAuthToken();
                 if (token) fetchUsers(token);
               }}
             >

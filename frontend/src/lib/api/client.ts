@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl } from './config';
-import { performLogout } from '@/lib/auth/session';
+import { getAuthToken, performLogout } from '@/lib/auth/session';
 
 const api = axios.create({
   headers: {
@@ -12,7 +12,7 @@ const api = axios.create({
 // Request interceptor for JWT and dynamic API host (localhost vs LAN IP)
 api.interceptors.request.use((config) => {
   config.baseURL = getApiBaseUrl();
-  const token = localStorage.getItem('auth_token');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

@@ -17,7 +17,7 @@ import { getMessagePreview } from '@/lib/chat/fileMessage';
 import { FileMessage } from '@/components/chat/FileMessage';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
-import { performLogout } from '@/lib/auth/session';
+import { getAuthToken, performLogout, readStoredUser } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -160,12 +160,16 @@ export default function ChatPage() {
   }, [markAsRead, clearUnreadForUser]);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (!token) {
       router.push('/login');
       return;
     }
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userData = readStoredUser();
+    if (!userData) {
+      router.push('/login');
+      return;
+    }
     if (userData.role === 'ADMIN') {
       router.push('/admin');
       return;
@@ -190,7 +194,7 @@ export default function ChatPage() {
       const newMessage = event.detail as Message;
       const selfId =
         currentUser?.id ||
-        JSON.parse(localStorage.getItem('user') || '{}').id;
+        readStoredUser()?.id;
       if (!selfId) return;
 
       if (newMessage.receiverId !== selfId && newMessage.senderId !== selfId) return;
@@ -243,12 +247,12 @@ export default function ChatPage() {
     loadingForUserRef.current = userId;
 
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = getAuthToken();
       if (!token) return;
 
       const selfId =
         currentUser?.id ||
-        JSON.parse(localStorage.getItem('user') || '{}').id;
+        readStoredUser()?.id;
       if (!selfId) return;
 
       const response = await fetch(apiUrl(`/messages?userId=${userId}`), {
@@ -429,7 +433,7 @@ export default function ChatPage() {
   };
 
   const handleRefresh = () => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (token && currentUser) {
       fetchUsers(token, currentUser);
       if (selectedUser) {
@@ -441,7 +445,7 @@ export default function ChatPage() {
 
   const handlePreviewFile = async (fileId: string, filename: string) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = getAuthToken();
       if (!token) {
         toast.error('Please login again');
         return;
@@ -461,7 +465,7 @@ export default function ChatPage() {
 
   const handleDownloadFile = async (fileId: string, filename: string) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = getAuthToken();
       if (!token) {
         toast.error('Please login again');
         return;
@@ -673,13 +677,13 @@ export default function ChatPage() {
           </div>
 
           {/* Chat panel */}
-          <div className="flex flex-1 flex-col p-4">
+          <div className="flex flex-1 flex-col bg-white p-4">
             {selectedUser ? (
               <>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-blue-400/25 pb-3">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div>
-                    <h3 className="font-semibold text-white">{selectedUser.name}</h3>
-                    <p className="text-sm text-blue-200/80">@{selectedUser.username}</p>
+                    <h3 className="font-semibold text-slate-900">{selectedUser.name}</h3>
+                    <p className="text-sm text-slate-600">@{selectedUser.username}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Badge variant="role" role={selectedUser.role} className="text-[10px]">
                         {getRoleLabel(selectedUser.role)}
@@ -708,15 +712,15 @@ export default function ChatPage() {
                 </div>
 
                 {typingUsers[selectedUser.id] && (
-                  <p className="mb-2 text-xs italic text-blue-200/90">{selectedUser.name} is typing…</p>
+                  <p className="mb-2 text-xs italic text-slate-500">{selectedUser.name} is typing…</p>
                 )}
 
-                <div className="mb-4 flex-1 space-y-2 overflow-y-auto rounded-lg bg-blue-950/40 p-3 min-h-[200px] max-h-[400px] lg:max-h-none lg:min-h-[300px] ring-1 ring-blue-400/15">
+                <div className="mb-4 flex-1 space-y-2 overflow-y-auto rounded-lg bg-white p-3 min-h-[200px] max-h-[400px] lg:max-h-none lg:min-h-[300px] ring-1 ring-slate-200">
                   {messages.length === 0 ? (
                     <EmptyState
                       icon="💬"
                       title="Send a message to start chatting!"
-                      className="py-16"
+                      className="py-16 [&_p]:text-slate-600"
                     />
                   ) : (
                     messages.map((msg) => {
@@ -752,7 +756,7 @@ export default function ChatPage() {
                               <p className="m-0 text-sm">{msg.content}</p>
                               <p className={cn(
                                 'm-0 mt-0.5 text-right text-[10px]',
-                                isOwn ? 'text-blue-100/80' : 'text-slate-500'
+                                isOwn ? 'text-slate-500' : 'text-slate-500'
                               )}>
                                 {formatTime(msg.createdAt)}
                                 {status}
@@ -793,7 +797,7 @@ export default function ChatPage() {
                 icon="💬"
                 title="Select a user to start chatting"
                 description={filteredUsers.length > 0 ? `${filteredUsers.length} users available` : undefined}
-                className="flex-1"
+                className="flex-1 [&_p]:text-slate-600"
               />
             )}
           </div>

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { initializeSocket, getSocket, disconnectSocket } from '@/lib/websocket/socket';
 import { chatApi } from '@/lib/api/chat';
+import { readStoredUser } from '@/lib/auth/session';
 
 const ChatContext = createContext();
 
@@ -72,7 +73,7 @@ export function ChatProvider({ children }) {
   // Send message
   const sendMessage = (receiverId, content, isEncrypted = true) => {
     if (!socket) return;
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = readStoredUser();
     socket.emit('private-message', {
       senderId: user.id,
       receiverId,
@@ -145,7 +146,7 @@ export function ChatProvider({ children }) {
   // Typing indicator
   const sendTyping = (receiverId, isTyping) => {
     if (!socket) return;
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = readStoredUser();
     socket.emit('typing', {
       senderId: user.id,
       receiverId,

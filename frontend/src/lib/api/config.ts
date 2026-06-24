@@ -70,7 +70,7 @@ export async function apiFetch(
   }
 }
 
-/** Attach JWT from localStorage */
+/** Attach JWT from the browser session */
 export function authHeaders(token: string, extra: HeadersInit = {}): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
