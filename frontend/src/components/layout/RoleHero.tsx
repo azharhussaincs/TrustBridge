@@ -38,7 +38,7 @@ export function RoleHero({ role, name, username, className, dark, showBrandLogo 
         <div className="min-w-0">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm ring-1 ring-white/20">
             {showBrandLogo ? (
-              <OpBridgeLogo size={16} className="rounded-sm" />
+              <OpBridgeLogo size={20} className="h-5 w-5" />
             ) : getRoleIcon(role) ? (
               <span>{getRoleIcon(role)}</span>
             ) : null}
@@ -57,15 +57,13 @@ export function RoleHero({ role, name, username, className, dark, showBrandLogo 
           </p>
         </div>
         <div className="shrink-0">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-md ring-1 ring-white/25 sm:h-24 sm:w-24">
-            {showBrandLogo ? (
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white p-1.5 sm:h-16 sm:w-16">
-                <OpBridgeLogo size={56} className="h-full w-full" />
-              </div>
-            ) : getRoleIcon(role) ? (
+          {showBrandLogo ? (
+            <OpBridgeLogo size={112} className="h-28 w-28" priority />
+          ) : getRoleIcon(role) ? (
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-md ring-1 ring-white/25 sm:h-24 sm:w-24">
               <span className="text-4xl sm:text-5xl">{getRoleIcon(role)}</span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'OPBridge - Secure LAN Communication',
+  title: 'OpBridge - Secure LAN Communication',
   description: 'Role-based secure LAN chat & file sharing with AES-GCM encryption',
 };
 

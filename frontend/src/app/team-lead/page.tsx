@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
+import { getRoleLabel } from '@/lib/roles';
 import { apiFetch, authHeaders } from '@/lib/api/config';
 import { getAuthToken, performLogout, readStoredUser, updateStoredUser } from '@/lib/auth/session';
 import { useSocket } from '@/context/SocketContext';
@@ -185,7 +186,7 @@ export default function TeamLeadDashboard() {
                 <td>{member.name}</td>
                 <td className="text-slate-600">{member.username}</td>
                 <td>
-                  <Badge variant="role" role={member.role}>{member.role}</Badge>
+                  <Badge variant="role" role={member.role}>{getRoleLabel(member.role)}</Badge>
                 </td>
                 <td>
                   <Button
@@ -248,7 +249,7 @@ export default function TeamLeadDashboard() {
         variant="team-lead"
         title={
           <span className="flex items-center gap-2">
-            <OpBridgeLogo size={28} className="rounded-md" />
+            <OpBridgeLogo size={28} />
             Team Lead Panel
           </span>
         }

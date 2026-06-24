@@ -11,7 +11,7 @@ export function OpBridgeLogo({ size = 40, className, priority = false }: OpBridg
   return (
     <Image
       src="/opbridge-logo.png"
-      alt="OPBridge logo"
+      alt="OpBridge logo"
       width={size}
       height={size}
       className={cn('object-contain', className)}

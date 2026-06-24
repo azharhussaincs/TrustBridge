@@ -552,7 +552,7 @@ export default function ChatPage() {
       <Navbar
         title={
           <span className="flex flex-wrap items-center gap-2">
-            💬 OPBridge Chat
+            💬 OpBridge Chat
             {isConnected ? (
               <span className="text-xs font-normal text-emerald-600">● Online</span>
             ) : (
@@ -677,7 +677,7 @@ export default function ChatPage() {
           </div>
 
           {/* Chat panel */}
-          <div className="flex flex-1 flex-col bg-white p-4">
+          <div className="flex flex-1 flex-col bg-white p-4 text-slate-900">
             {selectedUser ? (
               <>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">

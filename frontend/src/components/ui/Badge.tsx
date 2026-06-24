@@ -19,14 +19,18 @@ const variantStyles: Record<Exclude<BadgeVariant, 'role'>, string> = {
 };
 
 export function Badge({ children, variant = 'default', role, className }: BadgeProps) {
-  const style = variant === 'role' && role ? getRoleBadgeStyle(role) : variantStyles[variant as Exclude<BadgeVariant, 'role'>];
+  const roleStyle = variant === 'role' && role ? getRoleBadgeStyle(role) : '';
+  const variantStyle =
+    variant === 'role'
+      ? roleStyle || variantStyles.default
+      : variantStyles[variant as Exclude<BadgeVariant, 'role'>];
 
   return (
     <span
       className={cn(
         'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-        style,
-        className
+        className,
+        variantStyle
       )}
     >
       {children}

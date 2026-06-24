@@ -125,12 +125,12 @@ export default function DashboardPage() {
       <Navbar
         title={
           <span className="flex items-center gap-2">
-            <OpBridgeLogo size={28} className="rounded-md" />
-            OPBridge
+            <OpBridgeLogo size={28} />
+            OpBridge
           </span>
         }
         subtitle={
-          <Badge variant="role" role={role} className={roleColors?.badge}>
+          <Badge variant="role" role={role}>
             {getRoleLabel(role)}
           </Badge>
         }
@@ -157,7 +157,7 @@ export default function DashboardPage() {
           <Card variant="light" className="lg:col-span-2" padding="lg">
             <h3 className="text-lg font-semibold text-slate-900">Your workspace</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              OPBridge renders a distinct interface for each role. UI elements you cannot access are hidden —
+              OpBridge renders a distinct interface for each role. UI elements you cannot access are hidden —
               enforcing Zero Trust at the presentation layer.
             </p>
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
