@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
 import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
+import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -151,6 +152,9 @@ export default function AdminDashboard() {
   return (
     <div className="page-shell">
       <Navbar variant="admin" title="⚙️ Admin Control Center">
+        <Button onClick={() => router.push('/profile')} size="sm" variant="secondary">
+          🔑 My Account
+        </Button>
         <Button onClick={() => router.push('/admin/users')} size="sm">
           👥 Manage Users
         </Button>
@@ -182,6 +186,26 @@ export default function AdminDashboard() {
           role="ADMIN"
           name={currentUser?.name || 'Admin'}
           username={currentUser?.username}
+        />
+
+        <QuickActionGrid
+          className="sm:grid-cols-2"
+          actions={[
+            {
+              href: '/profile',
+              icon: '🔑',
+              title: 'My Account',
+              description: 'Update your name, username, and password',
+              accent: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+            },
+            {
+              href: '/admin/users',
+              icon: '👥',
+              title: 'Manage Users',
+              description: 'Create Executive Users and Team Leads',
+              accent: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100',
+            },
+          ]}
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

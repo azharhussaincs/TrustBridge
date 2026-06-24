@@ -194,6 +194,9 @@ export default function AdminUsersPage() {
   return (
     <div className="page-shell">
       <Navbar variant="admin" title="👥 User Management">
+        <Button onClick={() => router.push('/profile')} size="sm" variant="secondary">
+          🔑 My Account
+        </Button>
         <Button onClick={() => router.push('/admin')} variant="secondary" size="sm">
           ⚙️ Admin Panel
         </Button>
