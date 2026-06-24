@@ -20,7 +20,7 @@ export default function TeamMemberDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [authReady, setAuthReady] = useState(false);
-  const { unreadCount } = useSocket();
+  const { totalUnreadCount } = useSocket();
 
   useEffect(() => {
     const token = getAuthToken();
@@ -59,7 +59,7 @@ export default function TeamMemberDashboard() {
       >
         <Button onClick={() => router.push('/chat')} size="sm" className="bg-violet-600 hover:bg-violet-700">
           💬 Team Chat
-          <ChatNavBadge count={unreadCount} />
+          <ChatNavBadge count={totalUnreadCount} />
         </Button>
         <NavDashboardLink label="Home" />
         <Button onClick={() => performLogout()} variant="danger" size="sm">

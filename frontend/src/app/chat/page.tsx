@@ -75,8 +75,11 @@ export default function ChatPage() {
     sendMessage, 
     sendTyping,
     isConnected, 
-    unreadCount, 
-    unreadMessages, 
+    unreadCount,
+    groupUnreadCount = 0,
+    groupUnreadMessages = {},
+    totalUnreadCount = unreadCount,
+    unreadMessages,
     messageStatus = {},
     typingUsers = {},
     markAsRead, 
@@ -565,8 +568,8 @@ export default function ChatPage() {
             ) : (
               <span className="text-xs font-normal text-red-500">● Offline</span>
             )}
-            {unreadCount > 0 && (
-              <Badge variant="danger">{unreadCount} new</Badge>
+            {totalUnreadCount > 0 && (
+              <Badge variant="danger">{totalUnreadCount} new</Badge>
             )}
           </span>
         }
@@ -610,6 +613,11 @@ export default function ChatPage() {
               onClick={() => setChatMode('direct')}
             >
               Direct Chat
+              {unreadCount > 0 && (
+                <span className="ml-1.5 unread-badge text-[10px]">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Button>
             <Button
               type="button"
@@ -618,6 +626,11 @@ export default function ChatPage() {
               onClick={() => setChatMode('groups')}
             >
               Group Chat
+              {groupUnreadCount > 0 && (
+                <span className="ml-1.5 unread-badge text-[10px]">
+                  {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
+                </span>
+              )}
             </Button>
           </div>
         )}
@@ -631,9 +644,9 @@ export default function ChatPage() {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
                 Users ({filteredUsers.length})
-                {unreadCount > 0 && (
+                {totalUnreadCount > 0 && (
                   <Badge variant="danger" className="text-[10px]">
-                    {unreadCount} total new
+                    {totalUnreadCount} total new
                   </Badge>
                 )}
               </h3>

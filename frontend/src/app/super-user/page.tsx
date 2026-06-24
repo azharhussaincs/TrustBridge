@@ -53,7 +53,7 @@ export default function SuperUserDashboard() {
   const [teamTree, setTeamTree] = useState<TeamLeadNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
-  const { unreadCount } = useSocket();
+  const { totalUnreadCount } = useSocket();
 
   const fetchOrganization = async (token: string) => {
     setTreeLoading(true);
@@ -124,7 +124,7 @@ export default function SuperUserDashboard() {
           className="bg-amber-400 font-bold text-slate-900 hover:bg-amber-300 shadow-glow-amber"
         >
           💬 Secure Chat
-          <ChatNavBadge count={unreadCount} className="bg-red-600 text-white" />
+          <ChatNavBadge count={totalUnreadCount} className="bg-red-600 text-white" />
         </Button>
         <NavDashboardLink label="Home" />
         <Button onClick={() => performLogout()} variant="danger" size="sm">

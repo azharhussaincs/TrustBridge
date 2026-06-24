@@ -28,10 +28,13 @@ export function SocketProvider({ children }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState({});
+  const [groupUnreadMessages, setGroupUnreadMessages] = useState({});
+  const [groupUnreadCount, setGroupUnreadCount] = useState(0);
   const [messageStatus, setMessageStatus] = useState({});
   const [typingUsers, setTypingUsers] = useState({});
   const [authTick, setAuthTick] = useState(0);
   const connectedAtRef = useRef(0);
+  const activeGroupChatRef = useRef(null);
 
   const syncUnreadFromApi = useCallback(async () => {
     const token = getAuthToken();
@@ -64,6 +67,8 @@ export function SocketProvider({ children }) {
       setIsConnected(false);
       setUnreadCount(0);
       setUnreadMessages({});
+      setGroupUnreadMessages({});
+      setGroupUnreadCount(0);
       return;
     }
 
@@ -149,6 +154,33 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('new-group-message', (message) => {
+      const currentUser = readStoredUser() || {};
+
+      if (message.senderId !== currentUser.id) {
+        const isViewingGroup = activeGroupChatRef.current === message.groupId;
+
+        if (!isViewingGroup) {
+          setGroupUnreadCount((prev) => prev + 1);
+          setGroupUnreadMessages((prev) => ({
+            ...prev,
+            [message.groupId]: (prev[message.groupId] || 0) + 1,
+          }));
+
+          const msgTime = message.createdAt ? new Date(message.createdAt).getTime() : Date.now();
+          const isLiveMessage = msgTime >= connectedAtRef.current - 5000;
+
+          if (isLiveMessage) {
+            const senderName = message.sender?.name || 'Someone';
+            const groupName = message.groupName || 'Group';
+            const content = message.content || '📎 File shared';
+            const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
+            toast.success(
+              `👥 ${groupName} · ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`
+            );
+          }
+        }
+      }
+
       window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
     });
 
@@ -216,6 +248,25 @@ export function SocketProvider({ children }) {
     });
   };
 
+  const clearUnreadForGroup = useCallback((groupId) => {
+    if (!groupId) return;
+    setGroupUnreadMessages((prev) => {
+      const cleared = prev[groupId] || 0;
+      if (cleared <= 0) return prev;
+      setGroupUnreadCount((count) => Math.max(0, count - cleared));
+      return { ...prev, [groupId]: 0 };
+    });
+  }, []);
+
+  const setActiveGroupChatId = useCallback((groupId) => {
+    const nextId = groupId || null;
+    if (activeGroupChatRef.current === nextId) return;
+    activeGroupChatRef.current = nextId;
+    if (nextId) {
+      clearUnreadForGroup(nextId);
+    }
+  }, [clearUnreadForGroup]);
+
   const sendGroupMessage = (groupId, content, fileId = null) => {
     if (!socket) return;
     socket.emit('group-message', { groupId, content, fileId });
@@ -234,6 +285,9 @@ export function SocketProvider({ children }) {
         onlineUsers,
         unreadCount,
         unreadMessages,
+        groupUnreadCount,
+        groupUnreadMessages,
+        totalUnreadCount: unreadCount + groupUnreadCount,
         messageStatus,
         typingUsers,
         sendMessage,
@@ -243,6 +297,8 @@ export function SocketProvider({ children }) {
         markAsRead,
         getUnreadCount,
         clearUnreadForUser,
+        clearUnreadForGroup,
+        setActiveGroupChatId,
         setUnreadCount,
         syncUnreadFromApi,
       }}

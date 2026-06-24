@@ -239,7 +239,7 @@ class GroupService {
   async createMessage(groupId, senderId, content, fileId = null) {
     await this.ensureMember(groupId, senderId);
 
-    return prisma.groupMessage.create({
+    const message = await prisma.groupMessage.create({
       data: {
         groupId,
         senderId,
@@ -247,6 +247,23 @@ class GroupService {
         fileId: fileId || null,
       },
     });
+
+    const [sender, group] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: senderId },
+        select: { id: true, name: true, username: true },
+      }),
+      prisma.chatGroup.findUnique({
+        where: { id: groupId },
+        select: { name: true },
+      }),
+    ]);
+
+    return {
+      ...message,
+      sender,
+      groupName: group?.name || 'Group',
+    };
   }
 
   async getUserGroupIds(userId) {

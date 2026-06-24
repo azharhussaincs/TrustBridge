@@ -50,7 +50,12 @@ interface GroupChatPanelProps {
 }
 
 export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) {
-  const { sendGroupMessage, refreshGroupRooms } = useSocket();
+  const {
+    sendGroupMessage,
+    refreshGroupRooms,
+    unreadGroupMessages = {},
+    setActiveGroupChatId,
+  } = useSocket();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupDetails, setGroupDetails] = useState<{ members: GroupMember[]; name: string } | null>(null);
@@ -135,10 +140,27 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
   }, [loadGroups]);
 
   useEffect(() => {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId) {
+      setGroupDetails(null);
+      setMessages([]);
+      return;
+    }
+    setGroupDetails(null);
     loadGroupDetails(selectedGroupId);
     loadMessages(selectedGroupId);
   }, [selectedGroupId, loadGroupDetails, loadMessages]);
+
+  useEffect(() => {
+    if (!selectedGroupId) {
+      setActiveGroupChatId(null);
+      return;
+    }
+    setActiveGroupChatId(selectedGroupId);
+  }, [selectedGroupId, setActiveGroupChatId]);
+
+  useEffect(() => {
+    return () => setActiveGroupChatId(null);
+  }, [setActiveGroupChatId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -306,7 +328,9 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
           <EmptyState icon="👥" title="No groups yet" className="py-8" />
         ) : (
           <div className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[calc(100vh-280px)]">
-            {groups.map((g) => (
+            {groups.map((g) => {
+              const groupUnread = unreadGroupMessages[g.id] || 0;
+              return (
               <button
                 key={g.id}
                 type="button"
@@ -316,23 +340,30 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
                   selectedGroupId === g.id && 'chat-sidebar-item-active'
                 )}
               >
-                <div>
-                  <div className="font-medium text-white">{g.name}</div>
-                  <div className="text-xs text-blue-200/70">{g.memberCount} members</div>
+                <div className="flex w-full items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-white">{g.name}</div>
+                    <div className="text-xs text-blue-200/70">{g.memberCount} members</div>
+                  </div>
+                  {groupUnread > 0 && (
+                    <span className="unread-badge shrink-0">{groupUnread > 99 ? '99+' : groupUnread}</span>
+                  )}
                 </div>
               </button>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
 
       <div className="flex flex-1 flex-col bg-white p-4 text-slate-900">
-        {selectedGroupId && groupDetails ? (
+        {selectedGroupId ? (
+          groupDetails ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="font-semibold text-slate-900">{groupDetails.name}</h3>
-                <p className="text-xs text-slate-500">{groupDetails.members.length} members</p>
+                <p className="text-xs text-slate-500">{groupDetails.members?.length ?? 0} members</p>
               </div>
               {canManage && (
                 <div className="flex flex-wrap gap-2">
@@ -350,7 +381,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="mb-2 text-sm font-medium text-slate-800">Group members</p>
                 <ul className="mb-3 space-y-1">
-                  {groupDetails.members.map((m) => (
+                  {(groupDetails.members ?? []).map((m) => (
                     <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
                       <span>
                         {m.name} <span className="text-slate-500">@{m.username}</span>
@@ -374,7 +405,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
                   >
                     <option value="">Add member...</option>
                     {eligibleUsers
-                      .filter((u) => !groupDetails.members.some((m) => m.id === u.id))
+                      .filter((u) => !(groupDetails.members ?? []).some((m) => m.id === u.id))
                       .map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name} ({getRoleLabel(u.role)})
@@ -425,6 +456,9 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               </Button>
             </form>
           </>
+          ) : (
+            <LoadingSpinner message="Loading group..." size="sm" className="flex-1 [&_p]:text-slate-600" />
+          )
         ) : (
           <EmptyState
             icon="👥"

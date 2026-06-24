@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [authReady, setAuthReady] = useState(false);
-  const { unreadCount } = useSocket();
+  const { totalUnreadCount } = useSocket();
 
   useEffect(() => {
     const token = getAuthToken();
@@ -126,7 +126,7 @@ export default function DashboardPage() {
       actions.push(
         <Button key="chat" onClick={() => router.push('/chat')} size="sm">
           💬 Chat
-          <ChatNavBadge count={unreadCount} />
+          <ChatNavBadge count={totalUnreadCount} />
         </Button>
       );
     }

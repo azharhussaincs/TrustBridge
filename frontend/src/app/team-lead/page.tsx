@@ -22,7 +22,7 @@ import { ChatNavBadge } from '@/components/ui/ChatNavBadge';
 export default function TeamLeadDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const { unreadCount } = useSocket();
+  const { totalUnreadCount } = useSocket();
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teamManagers, setTeamManagers] = useState<any[]>([]);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
@@ -257,7 +257,7 @@ export default function TeamLeadDashboard() {
       >
         <Button onClick={() => router.push('/chat')} size="sm" className="bg-emerald-500 hover:bg-emerald-600">
           💬 Chat
-          <ChatNavBadge count={unreadCount} />
+          <ChatNavBadge count={totalUnreadCount} />
         </Button>
         <NavDashboardLink />
         <Button
