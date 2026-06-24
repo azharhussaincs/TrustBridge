@@ -148,6 +148,18 @@ export function SocketProvider({ children }) {
       }
     });
 
+    newSocket.on('new-group-message', (message) => {
+      window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
+    });
+
+    newSocket.on('group-message-sent', (message) => {
+      window.dispatchEvent(new CustomEvent('group-message-sent', { detail: message }));
+    });
+
+    newSocket.on('group-message-error', (payload) => {
+      window.dispatchEvent(new CustomEvent('group-message-error', { detail: payload }));
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -204,6 +216,16 @@ export function SocketProvider({ children }) {
     });
   };
 
+  const sendGroupMessage = (groupId, content, fileId = null) => {
+    if (!socket) return;
+    socket.emit('group-message', { groupId, content, fileId });
+  };
+
+  const refreshGroupRooms = () => {
+    if (!socket) return;
+    socket.emit('join-group-rooms');
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -216,6 +238,8 @@ export function SocketProvider({ children }) {
         typingUsers,
         sendMessage,
         sendTyping,
+        sendGroupMessage,
+        refreshGroupRooms,
         markAsRead,
         getUnreadCount,
         clearUnreadForUser,

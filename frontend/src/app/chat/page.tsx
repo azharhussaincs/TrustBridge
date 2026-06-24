@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
+import { GroupChatPanel } from '@/components/chat/GroupChatPanel';
 import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
 import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
@@ -101,6 +102,7 @@ export default function ChatPage() {
   const prevMessageCountRef = useRef(0);
   const [showFileShare, setShowFileShare] = useState(false);
   const [lastPreviewByUser, setLastPreviewByUser] = useState<Record<string, LastPreview>>({});
+  const [chatMode, setChatMode] = useState<'direct' | 'groups'>('direct');
 
   const updateLastPreview = (msg: Message, peerUserId: string) => {
     setLastPreviewByUser((prev) => ({
@@ -548,6 +550,10 @@ export default function ChatPage() {
     return unreadMessages[userId] || 0;
   };
 
+  const canManageGroups =
+    currentUser?.role === 'TEAM_LEAD' || currentUser?.role === 'SUPER_USER';
+  const showGroupChat = currentUser?.role !== 'ADMIN';
+
   return (
     <div className="page-shell flex min-h-screen flex-col">
       <Navbar
@@ -594,7 +600,31 @@ export default function ChatPage() {
         {error && (
           <Alert variant="error" className="mb-4">⚠️ {error}</Alert>
         )}
-        
+
+        {showGroupChat && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={chatMode === 'direct' ? 'primary' : 'secondary'}
+              onClick={() => setChatMode('direct')}
+            >
+              Direct Chat
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={chatMode === 'groups' ? 'primary' : 'secondary'}
+              onClick={() => setChatMode('groups')}
+            >
+              Group Chat
+            </Button>
+          </div>
+        )}
+
+        {chatMode === 'groups' && showGroupChat && currentUser ? (
+          <GroupChatPanel currentUser={currentUser} canManage={canManageGroups} />
+        ) : (
         <div className="card-elevated flex min-h-[500px] flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[300px_1fr] lg:flex-none">
           {/* User sidebar */}
           <div className="sidebar-panel border-b-0 lg:border-r lg:rounded-r-none rounded-b-none m-0 lg:m-0 border-0 lg:border-r border-blue-400/20 p-4">
@@ -803,6 +833,7 @@ export default function ChatPage() {
             )}
           </div>
         </div>
+        )}
       </PageContainer>
     </div>
   );

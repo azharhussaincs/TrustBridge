@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = "file:./dev.db?connection_limit=1"
 }
 
 model User {
@@ -52,4 +52,35 @@ model File {
   receiverId    String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model ChatGroup {
+  id          String            @id @default(cuid())
+  name        String
+  createdById String
+  teamId      String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  members     ChatGroupMember[]
+  messages    GroupMessage[]
+}
+
+model ChatGroupMember {
+  id        String    @id @default(cuid())
+  groupId   String
+  userId    String
+  addedAt   DateTime  @default(now())
+  group     ChatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model GroupMessage {
+  id        String    @id @default(cuid())
+  groupId   String
+  senderId  String
+  content   String
+  fileId    String?
+  createdAt DateTime  @default(now())
+  group     ChatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }

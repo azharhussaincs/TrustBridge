@@ -3,13 +3,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('./src/config/database');
 const { canUsersChat } = require('./src/services/permission.service');
+const groupService = require('./src/modules/group/group.service');
 
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const prisma = new PrismaClient();
 
 const server = http.createServer(app);
 
@@ -28,12 +28,20 @@ function isUserSocketOnline(userId) {
   return Boolean(room && room.size > 0);
 }
 
+async function joinUserGroupRooms(socket) {
+  const groupIds = await groupService.getUserGroupIds(socket.userId);
+  for (const groupId of groupIds) {
+    socket.join(`group:${groupId}`);
+  }
+}
+
 async function registerSocketUser(socket, { deliverOffline = true } = {}) {
   const userId = socket.userId;
   if (!userId) return;
 
   socket.join(userId);
   connectedUsers.set(userId, socket.id);
+  await joinUserGroupRooms(socket);
 
   await prisma.user.update({
     where: { id: userId },
@@ -96,6 +104,36 @@ io.on('connection', async (socket) => {
       await registerSocketUser(socket, { deliverOffline: false });
     } catch (error) {
       console.error('❌ Error registering user:', error.message);
+    }
+  });
+
+  socket.on('join-group-rooms', async () => {
+    try {
+      await joinUserGroupRooms(socket);
+    } catch (error) {
+      console.error('❌ Error joining group rooms:', error.message);
+    }
+  });
+
+  socket.on('group-message', async (data) => {
+    try {
+      const { groupId, content, fileId } = data;
+      if (!groupId || !content) {
+        socket.emit('group-message-error', { error: 'Group and content are required' });
+        return;
+      }
+
+      const message = await groupService.createMessage(
+        groupId,
+        socket.userId,
+        content,
+        fileId || null
+      );
+
+      io.to(`group:${groupId}`).emit('new-group-message', message);
+      socket.emit('group-message-sent', message);
+    } catch (error) {
+      socket.emit('group-message-error', { error: error.message });
     }
   });
 

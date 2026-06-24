@@ -1,7 +1,5 @@
 const fileService = require('./file.service');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../../config/database');
 
 class FileController {
   async uploadFile(req, res) {

@@ -31,8 +31,8 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string> = {
   ADMIN: 'Create Executive Users & Team Leads · View audit logs · Full system control',
-  SUPER_USER: 'Chat with Team Leads, Managers & Members · No user management',
-  TEAM_LEAD: 'CRUD own Team Managers & Members · Chat with leads & own team',
+  SUPER_USER: 'Chat with Team Leads, Managers & Members · Group chat · No user management',
+  TEAM_LEAD: 'CRUD own Team Managers & Members · Chat with leads & own team · Group chat',
   TEAM_MANAGER: 'Chat with Team Lead & own team members',
   TEAM_MEMBER: 'Chat with Team Manager & team members',
 };

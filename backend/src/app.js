@@ -9,6 +9,7 @@ const userRoutes = require('./modules/user/user.routes');
 const cryptoRoutes = require('./modules/crypto/crypto.routes');
 const messageRoutes = require('./modules/messaging/message.routes');
 const fileRoutes = require('./modules/file-transfer/file.routes');
+const groupRoutes = require('./modules/group/group.routes');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/crypto', cryptoRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/groups', groupRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

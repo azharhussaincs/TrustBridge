@@ -1,8 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { COMMUNICATION_RULES } = require('../../config/constants');
 
-const prisma = new PrismaClient();
+const prisma = require('../../config/database');
 
 // Role-based user creation permissions
 const CREATION_RULES = {

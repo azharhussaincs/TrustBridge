@@ -1,9 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('../crypto/encryption');
 
-const prisma = new PrismaClient();
+const prisma = require('../../config/database');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 const FILE_SHARING_RULES = {
