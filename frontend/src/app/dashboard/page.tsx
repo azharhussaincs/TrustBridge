@@ -64,7 +64,7 @@ export default function DashboardPage() {
       case 'ADMIN':
         return [
           { href: '/admin', icon: '⚙️', title: 'Admin Panel', description: 'System overview, hierarchy & audit logs', accent: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200' },
-          { href: '/admin/users', icon: '👥', title: 'Manage Users', description: 'Create Super Users and Team Leads', accent: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100' },
+          { href: '/admin/users', icon: '👥', title: 'Manage Users', description: 'Create Executive Users and Team Leads', accent: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100' },
         ];
       case 'SUPER_USER':
         return [
@@ -124,7 +124,7 @@ export default function DashboardPage() {
       <Navbar
         title={
           <span className="flex items-center gap-2">
-            {getRoleIcon(role)} TrustBridge
+            {getRoleIcon(role)} OPBridge
           </span>
         }
         subtitle={
@@ -155,7 +155,7 @@ export default function DashboardPage() {
           <Card className="lg:col-span-2" padding="lg">
             <h3 className="text-lg font-semibold text-white">Your workspace</h3>
             <p className="mt-2 text-sm leading-relaxed text-blue-100/85">
-              TrustBridge renders a distinct interface for each role. UI elements you cannot access are hidden —
+              OPBridge renders a distinct interface for each role. UI elements you cannot access are hidden —
               enforcing Zero Trust at the presentation layer.
             </p>
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">

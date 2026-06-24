@@ -2,22 +2,22 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
 import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { getRoleLabel, getRoleHomePath } from '@/lib/roles';
+import { getRoleLabel } from '@/lib/roles';
 import { getMessagePreview } from '@/lib/chat/fileMessage';
 import { FileMessage } from '@/components/chat/FileMessage';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
-import { performLogout, readStoredUser } from '@/lib/auth/session';
+import { performLogout } from '@/lib/auth/session';
 
 interface User {
   id: string;
@@ -55,11 +55,11 @@ const COMMUNICATION_RULES: Record<string, { canChatWith: string[], description: 
   },
   'TEAM_LEAD': {
     canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Super User, other Team Leads, own Team Managers, and own Team Members'
+    description: 'Can chat with Executive User, other Team Leads, own Team Managers, and own Team Members'
   },
   'TEAM_MANAGER': {
     canChatWith: ['SUPER_USER', 'TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
-    description: 'Can chat with Super User, Team Lead, other Team Managers, and Team Members'
+    description: 'Can chat with Executive User, Team Lead, other Team Managers, and Team Members'
   },
   'TEAM_MEMBER': {
     canChatWith: ['TEAM_LEAD', 'TEAM_MANAGER', 'TEAM_MEMBER'],
@@ -543,16 +543,12 @@ export default function ChatPage() {
     return unreadMessages[userId] || 0;
   };
 
-  const homePath = getRoleHomePath(
-    currentUser?.role || readStoredUser()?.role || ''
-  );
-
   return (
     <div className="page-shell flex min-h-screen flex-col">
       <Navbar
         title={
           <span className="flex flex-wrap items-center gap-2">
-            💬 TrustBridge Chat
+            💬 OPBridge Chat
             {isConnected ? (
               <span className="text-xs font-normal text-emerald-600">● Online</span>
             ) : (
@@ -564,11 +560,7 @@ export default function ChatPage() {
           </span>
         }
       >
-        <Link href={homePath} prefetch className="inline-flex">
-          <Button type="button" variant="secondary" size="sm">
-            Dashboard
-          </Button>
-        </Link>
+        <NavDashboardLink />
         <Button
           onClick={() => {
             toast.success('👋 Logged out');

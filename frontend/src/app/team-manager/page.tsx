@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
@@ -60,9 +61,7 @@ export default function TeamManagerDashboard() {
           💬 Team Chat
           <ChatNavBadge count={unreadCount} />
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
-          Home
-        </Button>
+        <NavDashboardLink label="Home" />
         <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
@@ -93,7 +92,7 @@ export default function TeamManagerDashboard() {
             <ul className="mt-4 space-y-2 text-sm text-blue-100/90">
               <li>✅ Chat with Team Lead (your team)</li>
               <li>✅ Chat with Team Members (your team)</li>
-              <li>✅ Chat with Super User for escalations</li>
+              <li>✅ Chat with Executive User for escalations</li>
               <li>🚫 No user management access</li>
             </ul>
           </Card>

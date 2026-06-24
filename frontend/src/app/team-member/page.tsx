@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
@@ -60,9 +61,7 @@ export default function TeamMemberDashboard() {
           💬 Team Chat
           <ChatNavBadge count={unreadCount} />
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
-          Home
-        </Button>
+        <NavDashboardLink label="Home" />
         <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
@@ -88,12 +87,12 @@ export default function TeamMemberDashboard() {
             <h3 className="text-lg font-semibold text-white">Your access</h3>
             <p className="mt-2 text-sm text-blue-100/85">
               Team Members communicate within their assigned team. You can reach your Team Lead,
-              Team Manager, and fellow members — plus the Super User when needed.
+              Team Manager, and fellow members — plus the Executive User when needed.
             </p>
             <ul className="mt-4 space-y-2 text-sm text-blue-100/90">
               <li>✅ Chat with Team Lead & Manager</li>
               <li>✅ Chat with teammates (same team)</li>
-              <li>✅ Escalate to Super User</li>
+              <li>✅ Escalate to Executive User</li>
               <li>🚫 No admin or user management</li>
             </ul>
           </Card>

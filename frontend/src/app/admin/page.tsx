@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
 import { Button } from '@/components/ui/Button';
@@ -153,9 +154,7 @@ export default function AdminDashboard() {
         <Button onClick={() => router.push('/admin/users')} size="sm">
           👥 Manage Users
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
-          Dashboard
-        </Button>
+        <NavDashboardLink />
         <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
@@ -229,7 +228,7 @@ export default function AdminDashboard() {
               <div className="mt-3">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">👑</span>
-                  <span className="hierarchy-title">Super User</span>
+                  <span className="hierarchy-title">Executive User</span>
                   <span className="hierarchy-subtitle">({hierarchy.superUser.name})</span>
                 </div>
                 <div className="hierarchy-item">

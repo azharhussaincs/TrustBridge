@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { QuickActionGrid } from '@/components/layout/QuickActionGrid';
 import { SecurityStrip } from '@/components/layout/SecurityStrip';
@@ -70,9 +71,7 @@ export default function SuperUserDashboard() {
           💬 Secure Chat
           <ChatNavBadge count={unreadCount} className="bg-red-600 text-white" />
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
-          Home
-        </Button>
+        <NavDashboardLink label="Home" />
         <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
@@ -103,7 +102,7 @@ export default function SuperUserDashboard() {
           <Card padding="lg">
             <h3 className="heading-section">🔒 Access scope</h3>
             <p className="mt-2 text-sm text-card-body">
-              As Super User you can <strong className="text-white">communicate</strong> with Team Leads and Team Managers only.
+              As Executive User you can <strong className="text-white">communicate</strong> with Team Leads and Team Managers only.
               You cannot add, modify, or delete users.
             </p>
             <div className="mt-5">

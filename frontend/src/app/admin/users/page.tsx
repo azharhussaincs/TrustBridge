@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, StatusDot } from '@/components/ui/Badge';
@@ -11,7 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { getRoleBadgeStyle } from '@/lib/roles';
+import { getRoleBadgeStyle, getRoleLabel } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { apiUrl, apiFetch, authHeaders } from '@/lib/api/config';
 import { performLogout } from '@/lib/auth/session';
@@ -196,9 +197,7 @@ export default function AdminUsersPage() {
         <Button onClick={() => router.push('/admin')} variant="secondary" size="sm">
           ⚙️ Admin Panel
         </Button>
-        <Button onClick={() => router.push('/dashboard')} size="sm">
-          Dashboard
-        </Button>
+        <NavDashboardLink />
         <Button onClick={() => performLogout()} variant="danger" size="sm">
           Logout
         </Button>
@@ -206,7 +205,7 @@ export default function AdminUsersPage() {
 
       <PageContainer>
         <Alert variant="info" className="mb-4">
-          <strong>Admin Permissions:</strong> You can only add <strong>Super User</strong> and <strong>Team Lead</strong> roles.
+          <strong>Admin Permissions:</strong> You can only add <strong>Executive User</strong> and <strong>Team Lead</strong> roles.
           Team Members and Team Managers are added by Team Leads.
         </Alert>
 
@@ -232,7 +231,7 @@ export default function AdminUsersPage() {
             title={`Users (${users.length})`}
             action={
               <Button onClick={() => setShowForm(!showForm)} size="sm">
-                {showForm ? '❌ Cancel' : '➕ Add User (Super User / Team Lead)'}
+                {showForm ? '❌ Cancel' : '➕ Add User (Executive User / Team Lead)'}
               </Button>
             }
           />
@@ -276,11 +275,11 @@ export default function AdminUsersPage() {
                     className="input-light"
                   >
                     {ADMIN_ALLOWED_ROLES.map((role) => (
-                      <option key={role} value={role}>{role}</option>
+                      <option key={role} value={role}>{getRoleLabel(role)}</option>
                     ))}
                   </select>
                   <p className="hint-text mt-1 text-[10px]">
-                    Admin can only add Super User and Team Lead
+                    Admin can only add Executive User and Team Lead
                   </p>
                 </div>
               </div>
@@ -331,7 +330,7 @@ export default function AdminUsersPage() {
                       <td className="text-card-muted">{user.username}</td>
                       <td>
                         <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', getRoleBadgeStyle(user.role))}>
-                          {user.role}
+                          {getRoleLabel(user.role)}
                         </span>
                       </td>
                       <td>

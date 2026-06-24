@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
+import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -251,9 +252,7 @@ export default function TeamLeadDashboard() {
           💬 Chat
           <ChatNavBadge count={unreadCount} />
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant="secondary" size="sm">
-          Dashboard
-        </Button>
+        <NavDashboardLink />
         <Button
           onClick={() => performLogout()}
           variant="danger"

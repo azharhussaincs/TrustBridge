@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -80,20 +81,23 @@ export default function LoginPage() {
         <div className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-12 lg:py-16">
           <div className="animate-slide-up">
             <div className="mb-6 inline-flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 text-2xl shadow-glow ring-1 ring-white/20">
-                🔐
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-2 shadow-glow ring-1 ring-white/20">
+                <Image
+                  src="/opbridge-logo.png"
+                  alt="OPBridge logo"
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-contain"
+                  priority
+                />
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Trust<span className="text-blue-400">Bridge</span>
+                  OP<span className="text-blue-400">Bridge</span>
                 </h1>
                 <p className="text-sm text-slate-400">Secure LAN Communication</p>
               </div>
             </div>
-
-            <p className="max-w-md text-lg leading-relaxed text-slate-300">
-              Role-based encrypted messaging and file sharing for your organization&apos;s internal network.
-            </p>
 
             <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {ROLE_PREVIEW.map(({ role, desc }) => (
@@ -164,7 +168,7 @@ export default function LoginPage() {
                 </div>
 
                 <Button type="submit" fullWidth size="lg" disabled={loading} className="shadow-glow">
-                  {loading ? 'Signing in...' : 'Sign In to TrustBridge'}
+                  {loading ? 'Signing in...' : 'Sign In to OPBridge'}
                 </Button>
               </form>
             </div>
