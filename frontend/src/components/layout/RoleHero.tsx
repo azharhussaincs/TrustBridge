@@ -37,7 +37,11 @@ export function RoleHero({ role, name, username, className, dark, showBrandLogo 
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm ring-1 ring-white/20">
-            <span>{getRoleIcon(role)}</span>
+            {showBrandLogo ? (
+              <OpBridgeLogo size={16} className="rounded-sm" />
+            ) : getRoleIcon(role) ? (
+              <span>{getRoleIcon(role)}</span>
+            ) : null}
             {getRoleLabel(role)}
           </div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -58,9 +62,9 @@ export function RoleHero({ role, name, username, className, dark, showBrandLogo 
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white p-1.5 sm:h-16 sm:w-16">
                 <OpBridgeLogo size={56} className="h-full w-full" />
               </div>
-            ) : (
+            ) : getRoleIcon(role) ? (
               <span className="text-4xl sm:text-5xl">{getRoleIcon(role)}</span>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

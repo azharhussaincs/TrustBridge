@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar, PageContainer } from '@/components/layout/Navbar';
 import { NavDashboardLink } from '@/components/layout/NavDashboardLink';
+import { OpBridgeLogo } from '@/components/layout/OpBridgeLogo';
 import { RoleHero } from '@/components/layout/RoleHero';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -247,7 +248,7 @@ export default function TeamLeadDashboard() {
         variant="team-lead"
         title={
           <span className="flex items-center gap-2">
-            <span className="text-2xl">🌿</span>
+            <OpBridgeLogo size={28} className="rounded-md" />
             Team Lead Panel
           </span>
         }
@@ -268,7 +269,7 @@ export default function TeamLeadDashboard() {
       </Navbar>
 
       <PageContainer className="space-y-6">
-        <RoleHero role="TEAM_LEAD" name={user?.name} username={user?.username} />
+        <RoleHero role="TEAM_LEAD" name={user?.name} username={user?.username} showBrandLogo />
 
         {fetchError && (
           <Alert variant="error" className="mb-4">

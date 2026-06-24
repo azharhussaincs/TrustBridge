@@ -74,7 +74,7 @@ export default function DashboardPage() {
         ];
       case 'TEAM_LEAD':
         return [
-          { href: '/team-lead', icon: '🌿', title: 'Team Lead Panel', description: 'Add managers & members to your team', accent: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100' },
+          { href: '/team-lead', icon: '👥', title: 'Team Lead Panel', description: 'Add managers & members to your team', accent: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100' },
           { href: '/chat', icon: '💬', title: 'Team Chat', description: 'Chat with leads, managers & members', accent: 'bg-brand-50 text-brand-600 ring-1 ring-brand-100' },
         ];
       case 'TEAM_MANAGER':
@@ -98,7 +98,7 @@ export default function DashboardPage() {
     if (home !== '/dashboard') {
       actions.push(
         <Button key="panel" onClick={() => router.push(home)} size="sm" className={roleColors?.badge}>
-          {getRoleIcon(role)} {getRoleLabel(role)} Panel
+          {getRoleIcon(role) ? `${getRoleIcon(role)} ` : ''}{getRoleLabel(role)} Panel
         </Button>
       );
     }

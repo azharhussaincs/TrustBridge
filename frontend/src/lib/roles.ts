@@ -8,7 +8,7 @@ export type UserRole =
 export const ROLE_ICONS: Record<UserRole, string> = {
   ADMIN: '⚙️',
   SUPER_USER: '👑',
-  TEAM_LEAD: '🌿',
+  TEAM_LEAD: '',
   TEAM_MANAGER: '📋',
   TEAM_MEMBER: '👤',
 };

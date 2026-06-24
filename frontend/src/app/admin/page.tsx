@@ -240,7 +240,6 @@ export default function AdminDashboard() {
             {hierarchy.teamLeads.length > 0 && (
               <div className="mt-3">
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="text-lg">🌿</span>
                   <span className="hierarchy-title">Team Leads</span>
                   <span className="hierarchy-subtitle">({hierarchy.teamLeads.length})</span>
                 </div>

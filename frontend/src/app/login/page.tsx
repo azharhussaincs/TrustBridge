@@ -103,7 +103,7 @@ export default function LoginPage() {
               {ROLE_PREVIEW.map(({ role, desc }) => (
                 <div key={role} className="feature-tile">
                   <div className="flex items-center gap-2 font-semibold text-white">
-                    <span>{ROLE_ICONS[role]}</span>
+                    {ROLE_ICONS[role] ? <span>{ROLE_ICONS[role]}</span> : null}
                     {ROLE_LABELS[role]}
                   </div>
                   <p className="mt-1 text-xs text-slate-400">{desc}</p>
