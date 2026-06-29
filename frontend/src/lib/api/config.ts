@@ -7,15 +7,33 @@ const DEFAULT_API_BASE = 'http://localhost:5000/api';
 const DEFAULT_TIMEOUT_MS = 8000;
 const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || '5000';
 
+/** Hostnames served through NGINX (API at /api on same port). Empty = IP:3000 → API on IP:5000. */
+const PROXY_HOSTNAMES = (process.env.NEXT_PUBLIC_PROXY_HOSTNAME || '')
+  .split(',')
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
 function getPageHostname(): string | null {
   if (typeof window === 'undefined') return null;
   const host = window.location.hostname;
   return host || null;
 }
 
+/** True when the page is served on port 80/443 or a known proxy hostname. */
+function isBehindReverseProxy(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  if (PROXY_HOSTNAMES.includes(host)) return true;
+  const port = window.location.port;
+  return port === '' || port === '80' || port === '443';
+}
+
 export function getApiBaseUrl(): string {
   const pageHost = getPageHostname();
   if (pageHost) {
+    if (isBehindReverseProxy()) {
+      return `${window.location.protocol}//${pageHost}/api`;
+    }
     return `http://${pageHost}:${BACKEND_PORT}/api`;
   }
   return (process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_BASE).replace(/\/$/, '');
@@ -36,6 +54,9 @@ export function getServerOrigin(): string {
 export function getWebSocketUrl(): string {
   const pageHost = getPageHostname();
   if (pageHost) {
+    if (isBehindReverseProxy()) {
+      return `${window.location.protocol}//${pageHost}`;
+    }
     return `http://${pageHost}:${BACKEND_PORT}`;
   }
   return (process.env.NEXT_PUBLIC_WEBSOCKET_URL || getServerOrigin()).replace(/\/$/, '');

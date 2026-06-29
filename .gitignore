@@ -1,0 +1,12 @@
+node_modules/
+.next/
+backend/uploads/
+backend/.env
+backend/prisma/dev.db
+frontend/.env.local
+.env
+.env.*
+!.env.example
+actions-runner/
+*.log
+.DS_Store

@@ -13,6 +13,8 @@ const groupRoutes = require('./modules/group/group.routes');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: '*',
   credentials: true,
