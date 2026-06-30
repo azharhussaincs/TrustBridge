@@ -71,6 +71,51 @@ class MessageService {
     };
   }
 
+  async getConversationPreviews(userId) {
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [{ senderId: userId }, { receiverId: userId }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+    });
+
+    const previews = {};
+    for (const msg of messages) {
+      const peerId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+      if (!previews[peerId]) previews[peerId] = msg;
+    }
+    return previews;
+  }
+
+  async getRecentMessages(userId, limit = 30) {
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [{ receiverId: userId }, { senderId: userId }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    const userIds = new Set();
+    messages.forEach((msg) => {
+      userIds.add(msg.senderId);
+      userIds.add(msg.receiverId);
+    });
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      select: { id: true, name: true, username: true },
+    });
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+    return messages.map((msg) => ({
+      ...msg,
+      sender: userMap[msg.senderId] || null,
+      receiver: userMap[msg.receiverId] || null,
+    }));
+  }
+
   async getRecentConversations(userId) {
     // Get distinct users the current user has chatted with
     const messages = await prisma.message.findMany({

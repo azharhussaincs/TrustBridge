@@ -22,6 +22,17 @@ async function fetchUnreadSummary(token) {
   return { unreadCount: 0, bySender: {} };
 }
 
+async function fetchRecentMessages(token, limit = 30) {
+  const response = await fetch(apiUrl(`/messages/recent?limit=${limit}`), {
+    headers: authHeaders(token),
+  });
+  const data = await response.json();
+  if (data.success && Array.isArray(data.data)) {
+    return data.data;
+  }
+  return [];
+}
+
 export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -35,6 +46,8 @@ export function SocketProvider({ children }) {
   const [authTick, setAuthTick] = useState(0);
   const connectedAtRef = useRef(0);
   const activeGroupChatRef = useRef(null);
+  const seenMessageIdsRef = useRef(new Set());
+  const inboxPollReadyRef = useRef(false);
 
   const syncUnreadFromApi = useCallback(async () => {
     const token = getAuthToken();
@@ -48,6 +61,42 @@ export function SocketProvider({ children }) {
     }
   }, []);
 
+  const pollInbox = useCallback(async () => {
+    const token = getAuthToken();
+    const user = readStoredUser() || {};
+    if (!token || !user.id) return;
+
+    try {
+      const [summary, recent] = await Promise.all([
+        fetchUnreadSummary(token),
+        fetchRecentMessages(token, 40),
+      ]);
+
+      setUnreadCount(summary.unreadCount);
+      setUnreadMessages(summary.bySender);
+
+      for (const message of recent) {
+        if (!message?.id || seenMessageIdsRef.current.has(message.id)) continue;
+        seenMessageIdsRef.current.add(message.id);
+
+        if (!inboxPollReadyRef.current) continue;
+
+        if (message.receiverId === user.id) {
+          const senderName = message.sender?.name || 'Someone';
+          const content = message.content || '📎 File shared';
+          const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
+          toast.success(`💬 ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`);
+        }
+
+        window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+      }
+
+      inboxPollReadyRef.current = true;
+    } catch (error) {
+      console.error('Failed to poll inbox:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const onAuthChange = () => setAuthTick((t) => t + 1);
     window.addEventListener('auth-changed', onAuthChange);
@@ -57,6 +106,18 @@ export function SocketProvider({ children }) {
       window.removeEventListener('storage', onAuthChange);
     };
   }, []);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    const user = readStoredUser() || {};
+    if (!token || !user.id) return undefined;
+
+    inboxPollReadyRef.current = false;
+    seenMessageIdsRef.current = new Set();
+    pollInbox();
+    const intervalId = setInterval(pollInbox, 5000);
+    return () => clearInterval(intervalId);
+  }, [authTick, pollInbox]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -85,6 +146,7 @@ export function SocketProvider({ children }) {
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
       syncUnreadFromApi();
+      pollInbox();
       newSocket.emit('get-unread-count', user.id);
     });
 
@@ -103,6 +165,14 @@ export function SocketProvider({ children }) {
 
     newSocket.on('new-message', (message) => {
       const currentUser = readStoredUser() || {};
+
+      if (message?.id) {
+        if (seenMessageIdsRef.current.has(message.id)) {
+          window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+          return;
+        }
+        seenMessageIdsRef.current.add(message.id);
+      }
 
       if (message.receiverId === currentUser.id) {
         setUnreadCount((prev) => prev + 1);
@@ -199,7 +269,7 @@ export function SocketProvider({ children }) {
     return () => {
       newSocket.disconnect();
     };
-  }, [authTick, syncUnreadFromApi]);
+  }, [authTick, syncUnreadFromApi, pollInbox]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     const token = getAuthToken();
@@ -251,12 +321,22 @@ export function SocketProvider({ children }) {
   };
 
   const markAsRead = (messageId, senderId, receiverId) => {
-    if (!socket) return;
-    socket.emit('mark-read', {
-      messageId,
-      senderId,
-      receiverId,
-    });
+    const token = getAuthToken();
+    if (socket?.connected) {
+      socket.emit('mark-read', {
+        messageId,
+        senderId,
+        receiverId,
+      });
+    }
+    if (token) {
+      fetch(apiUrl(`/messages/${messageId}/read`), {
+        method: 'PUT',
+        headers: authHeaders(token),
+      }).catch((error) => {
+        console.error('Failed to mark message as read:', error);
+      });
+    }
   };
 
   const getUnreadCount = (userId) => {
@@ -327,6 +407,7 @@ export function SocketProvider({ children }) {
         setActiveGroupChatId,
         setUnreadCount,
         syncUnreadFromApi,
+        pollInbox,
       }}
     >
       {children}

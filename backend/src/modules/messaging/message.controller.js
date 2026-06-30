@@ -91,6 +91,37 @@ class MessageController {
     }
   }
 
+  async getRecentMessages(req, res) {
+    try {
+      const limit = parseInt(req.query.limit, 10) || 30;
+      const messages = await messageService.getRecentMessages(req.user.id, limit);
+      res.json({
+        success: true,
+        data: messages,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  async getConversationPreviews(req, res) {
+    try {
+      const previews = await messageService.getConversationPreviews(req.user.id);
+      res.json({
+        success: true,
+        data: previews,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
   async getUnreadCount(req, res) {
     try {
       const summary = await messageService.getUnreadSummary(req.user.id);

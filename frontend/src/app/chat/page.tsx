@@ -164,6 +164,29 @@ export default function ChatPage() {
     clearUnreadRef.current = clearUnreadForUser;
   }, [markAsRead, clearUnreadForUser]);
 
+  const loadConversationPreviews = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl('/messages/previews'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!data.success || !data.data) return;
+
+      const previews: Record<string, LastPreview> = {};
+      for (const [peerId, msg] of Object.entries(data.data as Record<string, Message>)) {
+        previews[peerId] = {
+          content: msg.content,
+          createdAt: msg.createdAt,
+          fileId: msg.fileId,
+          senderId: msg.senderId,
+        };
+      }
+      setLastPreviewByUser((prev) => ({ ...previews, ...prev }));
+    } catch (error) {
+      console.error('Error loading conversation previews:', error);
+    }
+  };
+
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
@@ -183,6 +206,7 @@ export default function ChatPage() {
     
     if (userData.id) {
       fetchUsers(token, userData);
+      loadConversationPreviews(token);
       if (getUnreadCount) {
         getUnreadCount(userData.id);
       }
@@ -329,6 +353,14 @@ export default function ChatPage() {
       setMessages([]);
     }
   }, [selectedUser?.id, currentUser?.id, loadMessages, clearUnreadForUser]);
+
+  useEffect(() => {
+    if (!selectedUser?.id || !currentUser?.id) return undefined;
+    const intervalId = setInterval(() => {
+      loadMessages(selectedUser.id);
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, [selectedUser?.id, currentUser?.id, loadMessages]);
 
   const scrollToBottom = (smooth = false) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
@@ -576,9 +608,9 @@ export default function ChatPage() {
           <span className="flex flex-wrap items-center gap-2">
             💬 OpBridge Chat
             {isConnected ? (
-              <span className="text-xs font-normal text-emerald-600">● Online</span>
+              <span className="text-xs font-normal text-emerald-600">● Live</span>
             ) : (
-              <span className="text-xs font-normal text-red-500">● Offline</span>
+              <span className="text-xs font-normal text-amber-600">● Syncing</span>
             )}
             {totalUnreadCount > 0 && (
               <Badge variant="danger">{totalUnreadCount} new</Badge>
