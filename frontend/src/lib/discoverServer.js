@@ -10,7 +10,9 @@ export const discoverServer = async () => {
   for (const host of possibleUrls) {
     if (!host) continue;
     try {
-      const url = `http://${host}:5000/api/health`;
+      const port = window.location.port;
+      const origin = `${window.location.protocol}//${host}${port ? `:${port}` : ''}`;
+      const url = `${origin}/api/health`;
       const response = await fetch(url, { 
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },

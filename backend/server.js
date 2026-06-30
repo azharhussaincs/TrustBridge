@@ -10,6 +10,7 @@ const groupService = require('./src/modules/group/group.service');
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 const server = http.createServer(app);
 
@@ -262,16 +263,16 @@ io.on('connection', async (socket) => {
 
 app.set('io', io);
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, HOST, () => {
   console.log('='.repeat(50));
   console.log('🚀 TrustBridge Server Started');
   console.log('='.repeat(50));
-  console.log(`📡 Server running on: http://0.0.0.0:${PORT}`);
+  console.log(`📡 Server running on: http://${HOST}:${PORT}`);
   console.log(`🔐 Encryption: AES-GCM`);
   console.log(`🛡️  Security: Zero Trust Architecture`);
   console.log(`💬 WebSocket: Enabled`);
   console.log(`📨 Offline Message Delivery: Enabled`);
-  console.log(`🌐 Listening on ALL network interfaces`);
+  console.log(`🌐 Bind: ${HOST} (API not exposed on LAN; use frontend :3000)`);
   console.log('='.repeat(50));
   console.log('✅ Ready for connections');
 });

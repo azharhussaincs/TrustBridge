@@ -48,6 +48,7 @@ if [[ ! -f .env ]]; then
   ENC_KEY="$(openssl rand -hex 16)"
   cat > .env <<EOF
 PORT=5000
+HOST=127.0.0.1
 NODE_ENV=production
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRE=7d
