@@ -304,8 +304,8 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
     new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="card-elevated flex min-h-[500px] flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[280px_1fr]">
-      <div className="sidebar-panel border-b-0 p-4 lg:border-r lg:rounded-r-none">
+    <div className="card-elevated flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[280px_1fr]">
+      <div className="sidebar-panel flex min-h-0 flex-col overflow-hidden border-b-0 p-4 lg:border-r lg:rounded-r-none">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-white">Groups ({groups.length})</h3>
           {canManage && (
@@ -327,7 +327,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
         ) : groups.length === 0 ? (
           <EmptyState icon="👥" title="No groups yet" className="py-8" />
         ) : (
-          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[calc(100vh-280px)]">
+          <div className="flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:max-h-none">
             {groups.map((g) => {
               const groupUnread = unreadGroupMessages[g.id] || 0;
               return (
@@ -356,11 +356,11 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
         )}
       </div>
 
-      <div className="flex flex-1 flex-col bg-white p-4 text-slate-900">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white p-4 text-slate-900">
         {selectedGroupId ? (
           groupDetails ? (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="font-semibold text-slate-900">{groupDetails.name}</h3>
                 <p className="text-xs text-slate-500">{groupDetails.members?.length ?? 0} members</p>
@@ -419,7 +419,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               </div>
             )}
 
-            <div className="mb-4 flex-1 space-y-2 overflow-y-auto rounded-lg bg-white p-3 ring-1 ring-slate-200 min-h-[200px] lg:min-h-[280px]">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg bg-white p-3 ring-1 ring-slate-200">
               {messagesLoading ? (
                 <LoadingSpinner message="Loading messages..." size="sm" className="[&_p]:text-slate-600" />
               ) : messages.length === 0 ? (
@@ -443,7 +443,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSend} className="flex gap-2">
+            <form onSubmit={handleSend} className="mt-3 flex shrink-0 gap-2">
               <input
                 type="text"
                 value={message}

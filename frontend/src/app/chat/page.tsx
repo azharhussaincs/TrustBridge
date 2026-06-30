@@ -679,7 +679,7 @@ export default function ChatPage() {
   const showGroupChat = currentUser?.role !== 'ADMIN';
 
   return (
-    <div className="page-shell flex min-h-screen flex-col">
+    <div className="page-shell flex h-screen flex-col overflow-hidden">
       <Navbar
         title={
           <span className="flex flex-wrap items-center gap-2">
@@ -708,7 +708,7 @@ export default function ChatPage() {
         </Button>
       </Navbar>
 
-      <PageContainer className="flex flex-1 flex-col">
+      <PageContainer className="flex min-h-0 flex-1 flex-col overflow-hidden py-4 sm:py-5">
         <Alert variant="warning" className="mb-4">
           <strong>Your Chat Permissions:</strong> {COMMUNICATION_RULES[currentUser?.role]?.description || 'Chat permissions apply'}
           {currentUser?.role === 'TEAM_MEMBER' && currentUser?.teamId && (
@@ -775,9 +775,9 @@ export default function ChatPage() {
         {chatMode === 'groups' && showGroupChat && currentUser ? (
           <GroupChatPanel currentUser={currentUser} canManage={canManageGroups} />
         ) : (
-        <div className="card-elevated flex min-h-[500px] flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[300px_1fr] lg:flex-none">
+        <div className="card-elevated flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[300px_1fr]">
           {/* User sidebar */}
-          <div className="sidebar-panel border-b-0 lg:border-r lg:rounded-r-none rounded-b-none m-0 lg:m-0 border-0 lg:border-r border-blue-400/20 p-4">
+          <div className="sidebar-panel flex min-h-0 flex-col overflow-hidden border-b-0 lg:border-r lg:rounded-r-none rounded-b-none m-0 lg:m-0 border-0 lg:border-r border-blue-400/20 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
                 Users ({filteredUsers.length})
@@ -797,7 +797,7 @@ export default function ChatPage() {
                 {isRefreshing ? '⏳' : '🔄'} Refresh
               </Button>
             </div>
-            <div className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[calc(100vh-280px)]">
+            <div className="flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:max-h-none">
               {filteredUsers.length === 0 ? (
                 <EmptyState icon="👥" title="No users available" className="py-8" />
               ) : (
@@ -856,10 +856,10 @@ export default function ChatPage() {
           </div>
 
           {/* Chat panel */}
-          <div className="flex flex-1 flex-col bg-white p-4 text-slate-900">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white p-4 text-slate-900">
             {selectedUser ? (
               <>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div>
                     <h3 className="font-semibold text-slate-900">{selectedUser.name}</h3>
                     <p className="text-sm text-slate-600">@{selectedUser.username}</p>
@@ -891,10 +891,10 @@ export default function ChatPage() {
                 </div>
 
                 {typingUsers[selectedUser.id] && (
-                  <p className="mb-2 text-xs italic text-slate-500">{selectedUser.name} is typing…</p>
+                  <p className="mb-2 shrink-0 text-xs italic text-slate-500">{selectedUser.name} is typing…</p>
                 )}
 
-                <div className="mb-4 flex-1 space-y-2 overflow-y-auto rounded-lg bg-white p-3 min-h-[200px] max-h-[400px] lg:max-h-none lg:min-h-[300px] ring-1 ring-slate-200">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg bg-white p-3 ring-1 ring-slate-200">
                   {messages.length === 0 ? (
                     <EmptyState
                       icon="💬"
@@ -962,14 +962,16 @@ export default function ChatPage() {
                 </div>
 
                 {showFileShare && (
+                  <div className="shrink-0">
                   <FileSharing
                     receiverId={selectedUser.id}
                     currentUser={currentUser}
                     onFileMessage={handleFileMessage}
                   />
+                  </div>
                 )}
 
-                <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
+                <form onSubmit={handleSendMessage} className="mt-3 flex shrink-0 gap-2">
                   <input
                     type="text"
                     value={message}
