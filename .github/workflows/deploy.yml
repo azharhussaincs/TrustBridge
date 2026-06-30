@@ -18,4 +18,5 @@ jobs:
       - name: Health check
         run: |
           sleep 5
-          curl -fsS "http://127.0.0.1:5000/api/health" || curl -fsS "http://127.0.0.1:3000/login" -o /dev/null
+          curl -fsS "http://127.0.0.1:5000/api/health"
+          curl -fsS "http://127.0.0.1:3000/api/health" -o /dev/null
