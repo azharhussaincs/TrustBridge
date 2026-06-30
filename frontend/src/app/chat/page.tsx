@@ -618,6 +618,25 @@ export default function ChatPage() {
     return '';
   };
 
+  const getUnreadForUser = (userId: string) => unreadMessages[userId] || 0;
+
+  const sortedUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      const unreadDiff = getUnreadForUser(b.id) - getUnreadForUser(a.id);
+      if (unreadDiff !== 0) return unreadDiff;
+
+      const timeA = lastPreviewByUser[a.id]?.createdAt
+        ? new Date(lastPreviewByUser[a.id].createdAt).getTime()
+        : 0;
+      const timeB = lastPreviewByUser[b.id]?.createdAt
+        ? new Date(lastPreviewByUser[b.id].createdAt).getTime()
+        : 0;
+      if (timeA !== timeB) return timeB - timeA;
+
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredUsers, unreadMessages, lastPreviewByUser]);
+
   if (isLoading) {
     return <LoadingSpinner fullScreen message="Loading chat..." />;
   }
@@ -636,27 +655,6 @@ export default function ChatPage() {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
-  const getUnreadForUser = (userId: string) => {
-    return unreadMessages[userId] || 0;
-  };
-
-  const sortedUsers = useMemo(() => {
-    return [...filteredUsers].sort((a, b) => {
-      const unreadDiff = getUnreadForUser(b.id) - getUnreadForUser(a.id);
-      if (unreadDiff !== 0) return unreadDiff;
-
-      const timeA = lastPreviewByUser[a.id]?.createdAt
-        ? new Date(lastPreviewByUser[a.id].createdAt).getTime()
-        : 0;
-      const timeB = lastPreviewByUser[b.id]?.createdAt
-        ? new Date(lastPreviewByUser[b.id].createdAt).getTime()
-        : 0;
-      if (timeA !== timeB) return timeB - timeA;
-
-      return a.name.localeCompare(b.name);
-    });
-  }, [filteredUsers, unreadMessages, lastPreviewByUser]);
 
   const formatMessageDay = (dateString: string) => {
     const date = new Date(dateString);
