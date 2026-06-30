@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/context/SocketContext';
 import FileSharing from '@/components/chat/FileSharing';
@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getRoleLabel } from '@/lib/roles';
 import { getMessagePreview } from '@/lib/chat/fileMessage';
+import { getIncomingPreview } from '@/lib/chat/notifications';
 import { FileMessage } from '@/components/chat/FileMessage';
 import { cn } from '@/lib/utils';
 import { apiUrl } from '@/lib/api/config';
@@ -86,6 +87,8 @@ export default function ChatPage() {
     getUnreadCount, 
     clearUnreadForUser,
     syncUnreadFromApi,
+    pollInbox,
+    setActiveDirectChatUserId,
   } = useSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -106,6 +109,11 @@ export default function ChatPage() {
   const [showFileShare, setShowFileShare] = useState(false);
   const [lastPreviewByUser, setLastPreviewByUser] = useState<Record<string, LastPreview>>({});
   const [chatMode, setChatMode] = useState<'direct' | 'groups'>('direct');
+  const [incomingAlert, setIncomingAlert] = useState<{
+    senderId: string;
+    senderName: string;
+    preview: string;
+  } | null>(null);
 
   const updateLastPreview = (msg: Message, peerUserId: string) => {
     setLastPreviewByUser((prev) => ({
@@ -188,6 +196,38 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
+    if (chatMode !== 'direct') {
+      setActiveDirectChatUserId(null);
+      return;
+    }
+    setActiveDirectChatUserId(selectedUser?.id ?? null);
+    return () => setActiveDirectChatUserId(null);
+  }, [selectedUser?.id, chatMode, setActiveDirectChatUserId]);
+
+  useEffect(() => {
+    const onIncomingAlert = (event: CustomEvent) => {
+      const { message, senderName } = event.detail as {
+        message: Message;
+        senderName: string;
+      };
+      const selfId = currentUser?.id || readStoredUser()?.id;
+      if (!selfId || message.receiverId !== selfId) return;
+      if (selectedUser?.id === message.senderId) return;
+
+      setIncomingAlert({
+        senderId: message.senderId,
+        senderName,
+        preview: getIncomingPreview(message.content, message.fileId),
+      });
+    };
+
+    window.addEventListener('chat-incoming-alert', onIncomingAlert as EventListener);
+    return () => {
+      window.removeEventListener('chat-incoming-alert', onIncomingAlert as EventListener);
+    };
+  }, [currentUser?.id, selectedUser?.id]);
+
+  useEffect(() => {
     const token = getAuthToken();
     if (!token) {
       router.push('/login');
@@ -234,6 +274,7 @@ export default function ChatPage() {
 
       if (selectedUser && isConversationMessage(newMessage, selectedUser.id, selfId)) {
         setMessages((prev) => mergeIncomingMessage(prev, newMessage));
+        setIncomingAlert(null);
         if (newMessage.receiverId === selfId && newMessage.senderId === selectedUser.id) {
           markAsRead(newMessage.id, newMessage.senderId, selfId);
           clearUnreadForUser(selectedUser.id);
@@ -486,6 +527,9 @@ export default function ChatPage() {
     const token = getAuthToken();
     if (token && currentUser) {
       fetchUsers(token, currentUser);
+      loadConversationPreviews(token);
+      pollInbox?.();
+      syncUnreadFromApi?.();
       if (selectedUser) {
         loadMessages(selectedUser.id);
       }
@@ -597,6 +641,41 @@ export default function ChatPage() {
     return unreadMessages[userId] || 0;
   };
 
+  const sortedUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      const unreadDiff = getUnreadForUser(b.id) - getUnreadForUser(a.id);
+      if (unreadDiff !== 0) return unreadDiff;
+
+      const timeA = lastPreviewByUser[a.id]?.createdAt
+        ? new Date(lastPreviewByUser[a.id].createdAt).getTime()
+        : 0;
+      const timeB = lastPreviewByUser[b.id]?.createdAt
+        ? new Date(lastPreviewByUser[b.id].createdAt).getTime()
+        : 0;
+      if (timeA !== timeB) return timeB - timeA;
+
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredUsers, unreadMessages, lastPreviewByUser]);
+
+  const formatMessageDay = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  };
+
+  const openUserChat = (user: User) => {
+    setChatMode('direct');
+    setIncomingAlert(null);
+    if (selectedUser?.id === user.id) return;
+    setSelectedUser(user);
+    clearUnreadForUser(user.id);
+  };
+
   const canManageGroups =
     currentUser?.role === 'TEAM_LEAD' || currentUser?.role === 'SUPER_USER';
   const showGroupChat = currentUser?.role !== 'ADMIN';
@@ -643,6 +722,22 @@ export default function ChatPage() {
             📨 Messages are delivered even when the recipient is offline
           </span>
         </Alert>
+
+        {incomingAlert && chatMode === 'direct' && (
+          <button
+            type="button"
+            onClick={() => {
+              const user = filteredUsers.find((u) => u.id === incomingAlert.senderId);
+              if (user) openUserChat(user);
+              setIncomingAlert(null);
+            }}
+            className="chat-notification-banner mb-4 w-full text-left"
+          >
+            <span className="font-semibold">💬 New message from {incomingAlert.senderName}</span>
+            <span className="mt-0.5 block truncate text-sm opacity-90">{incomingAlert.preview}</span>
+            <span className="mt-1 block text-xs opacity-75">Tap to open conversation</span>
+          </button>
+        )}
 
         {error && (
           <Alert variant="error" className="mb-4">⚠️ {error}</Alert>
@@ -708,40 +803,38 @@ export default function ChatPage() {
               {filteredUsers.length === 0 ? (
                 <EmptyState icon="👥" title="No users available" className="py-8" />
               ) : (
-                filteredUsers.map((u) => {
+                sortedUsers.map((u) => {
                   const isSameTeamUser = isSameTeam(u);
                   const userUnread = getUnreadForUser(u.id);
                   const isSelected = selectedUser?.id === u.id;
+                  const preview = lastPreviewByUser[u.id];
+                  const previewPrefix =
+                    preview && preview.senderId === currentUser?.id ? 'You: ' : '';
                   return (
                     <button
                       key={u.id}
                       type="button"
-                      onClick={() => {
-                        if (selectedUser?.id === u.id) return;
-                        setSelectedUser(u);
-                        clearUnreadForUser(u.id);
-                      }}
+                      onClick={() => openUserChat(u)}
                       className={cn(
                         'chat-sidebar-item',
-                        isSelected ? 'chat-sidebar-item-active' : ''
+                        isSelected ? 'chat-sidebar-item-active' : '',
+                        userUnread > 0 && !isSelected ? 'chat-sidebar-item-unread' : ''
                       )}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 font-medium text-white">
-                          <span className="truncate">{u.name}</span>
+                          <span className={cn('truncate', userUnread > 0 && 'font-bold')}>{u.name}</span>
                           {isSameTeamUser && currentUser?.role === 'TEAM_MEMBER' && (
                             <Badge variant="success" className="text-[9px]">Same Team</Badge>
                           )}
                         </div>
                         <div className="truncate text-xs text-blue-200/70">{u.username}</div>
-                        {lastPreviewByUser[u.id] && (
-                          <p className="sidebar-preview">
-                            {getMessagePreview(
-                              lastPreviewByUser[u.id].content,
-                              lastPreviewByUser[u.id].fileId
-                            )}
+                        {preview && (
+                          <p className={cn('sidebar-preview', userUnread > 0 && 'font-medium text-white/90')}>
+                            {previewPrefix}
+                            {getMessagePreview(preview.content, preview.fileId)}
                             <span className="ml-1 opacity-70">
-                              · {formatPreviewTime(lastPreviewByUser[u.id].createdAt)}
+                              · {formatPreviewTime(preview.createdAt)}
                             </span>
                           </p>
                         )}
@@ -811,17 +904,28 @@ export default function ChatPage() {
                       className="py-16 [&_p]:text-slate-600"
                     />
                   ) : (
-                    messages.map((msg) => {
+                    messages.map((msg, index) => {
                       const isOwn = msg.senderId === currentUser?.id;
                       const isFile = isFileMessage(msg);
                       const status = getMessageStatus(msg);
                       const senderName = isOwn
                         ? currentUser?.name
                         : selectedUser?.name;
+                      const prevMsg = messages[index - 1];
+                      const showDay =
+                        !prevMsg ||
+                        formatMessageDay(prevMsg.createdAt) !== formatMessageDay(msg.createdAt);
                       
                       return (
+                        <div key={msg.id}>
+                          {showDay && (
+                            <div className="my-3 flex justify-center">
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-500">
+                                {formatMessageDay(msg.createdAt)}
+                              </span>
+                            </div>
+                          )}
                         <div
-                          key={msg.id}
                           className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}
                         >
                           {isFile ? (
@@ -851,6 +955,7 @@ export default function ChatPage() {
                               </p>
                             </div>
                           )}
+                        </div>
                         </div>
                       );
                     })

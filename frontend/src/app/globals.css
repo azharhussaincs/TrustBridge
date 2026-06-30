@@ -376,6 +376,17 @@
     background: rgba(37, 99, 235, 0.35);
   }
 
+  .chat-sidebar-item-unread {
+    @apply border-l-4 border-rose-400;
+    background: rgba(244, 63, 94, 0.12);
+  }
+
+  .chat-notification-banner {
+    @apply rounded-xl border border-emerald-400/40 px-4 py-3 text-emerald-50 shadow-lg transition hover:brightness-110;
+    background: linear-gradient(135deg, rgba(6, 95, 70, 0.95), rgba(4, 120, 87, 0.9));
+    animation: slideUp 0.35s ease-out;
+  }
+
   .unread-badge {
     @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white shadow-sm;
     background: linear-gradient(135deg, #f43f5e, #e11d48);

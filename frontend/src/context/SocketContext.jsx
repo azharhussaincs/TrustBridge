@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import toast from 'react-hot-toast';
 import { apiUrl, authHeaders, getWebSocketUrl } from '@/lib/api/config';
+import { notifyIncomingChatMessage } from '@/lib/chat/notifications';
 import { getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 const SocketContext = createContext();
@@ -48,6 +48,49 @@ export function SocketProvider({ children }) {
   const activeGroupChatRef = useRef(null);
   const seenMessageIdsRef = useRef(new Set());
   const inboxPollReadyRef = useRef(false);
+  const activeDirectChatUserIdRef = useRef(null);
+
+  const setActiveDirectChatUserId = useCallback((userId) => {
+    activeDirectChatUserIdRef.current = userId || null;
+  }, []);
+
+  const shouldNotifyIncoming = useCallback((message) => {
+    const user = readStoredUser() || {};
+    if (!user.id || message.receiverId !== user.id) return false;
+    if (message.senderId === activeDirectChatUserIdRef.current) return false;
+    return true;
+  }, []);
+
+  const handleIncomingMessage = useCallback((message, { notify = false, bumpUnread = false } = {}) => {
+    if (!message?.id) return;
+
+    if (seenMessageIdsRef.current.has(message.id)) {
+      window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+      return;
+    }
+    seenMessageIdsRef.current.add(message.id);
+
+    const user = readStoredUser() || {};
+    if (bumpUnread && message.receiverId === user.id) {
+      setUnreadCount((prev) => prev + 1);
+      setUnreadMessages((prev) => ({
+        ...prev,
+        [message.senderId]: (prev[message.senderId] || 0) + 1,
+      }));
+    }
+
+    if (notify && inboxPollReadyRef.current && shouldNotifyIncoming(message)) {
+      const senderName = message.sender?.name || 'Someone';
+      notifyIncomingChatMessage(message, senderName);
+      window.dispatchEvent(
+        new CustomEvent('chat-incoming-alert', {
+          detail: { message, senderName },
+        })
+      );
+    }
+
+    window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+  }, [shouldNotifyIncoming]);
 
   const syncUnreadFromApi = useCallback(async () => {
     const token = getAuthToken();
@@ -76,26 +119,14 @@ export function SocketProvider({ children }) {
       setUnreadMessages(summary.bySender);
 
       for (const message of recent) {
-        if (!message?.id || seenMessageIdsRef.current.has(message.id)) continue;
-        seenMessageIdsRef.current.add(message.id);
-
-        if (!inboxPollReadyRef.current) continue;
-
-        if (message.receiverId === user.id) {
-          const senderName = message.sender?.name || 'Someone';
-          const content = message.content || '📎 File shared';
-          const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
-          toast.success(`💬 ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`);
-        }
-
-        window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+        handleIncomingMessage(message, { notify: true });
       }
 
       inboxPollReadyRef.current = true;
     } catch (error) {
       console.error('Failed to poll inbox:', error);
     }
-  }, []);
+  }, [handleIncomingMessage]);
 
   useEffect(() => {
     const onAuthChange = () => setAuthTick((t) => t + 1);
@@ -164,35 +195,7 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('new-message', (message) => {
-      const currentUser = readStoredUser() || {};
-
-      if (message?.id) {
-        if (seenMessageIdsRef.current.has(message.id)) {
-          window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
-          return;
-        }
-        seenMessageIdsRef.current.add(message.id);
-      }
-
-      if (message.receiverId === currentUser.id) {
-        setUnreadCount((prev) => prev + 1);
-        setUnreadMessages((prev) => ({
-          ...prev,
-          [message.senderId]: (prev[message.senderId] || 0) + 1,
-        }));
-
-        const msgTime = message.createdAt ? new Date(message.createdAt).getTime() : Date.now();
-        const isLiveMessage = msgTime >= connectedAtRef.current - 5000;
-
-        if (isLiveMessage) {
-          const senderName = message.sender?.name || 'Someone';
-          const content = message.content || '📎 File shared';
-          const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
-          toast.success(`💬 ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`);
-        }
-      }
-
-      window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
+      handleIncomingMessage(message, { notify: true, bumpUnread: true });
     });
 
     newSocket.on('message-sent', (message) => {
@@ -269,7 +272,7 @@ export function SocketProvider({ children }) {
     return () => {
       newSocket.disconnect();
     };
-  }, [authTick, syncUnreadFromApi, pollInbox]);
+  }, [authTick, syncUnreadFromApi, pollInbox, handleIncomingMessage]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     const token = getAuthToken();
@@ -406,6 +409,7 @@ export function SocketProvider({ children }) {
         clearUnreadForGroup,
         setActiveGroupChatId,
         setUnreadCount,
+        setActiveDirectChatUserId,
         syncUnreadFromApi,
         pollInbox,
       }}
