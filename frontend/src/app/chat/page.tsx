@@ -272,13 +272,25 @@ export default function ChatPage() {
       if (data.success) {
         const loaded = data.data || [];
         setMessages((prev) => {
+          const pending = prev.filter((m) => m.id.startsWith('temp'));
+          const stillPending = pending.filter(
+            (temp) =>
+              !loaded.some(
+                (m: Message) =>
+                  m.senderId === temp.senderId &&
+                  m.receiverId === temp.receiverId &&
+                  m.content === temp.content &&
+                  (m.fileId || null) === (temp.fileId || null)
+              )
+          );
+          const next = [...loaded, ...stillPending];
           if (
-            prev.length === loaded.length &&
-            prev.every((m, i) => m.id === loaded[i]?.id)
+            prev.length === next.length &&
+            prev.every((m, i) => m.id === next[i]?.id)
           ) {
             return prev;
           }
-          return loaded;
+          return next;
         });
 
         if (loaded.length > 0) {

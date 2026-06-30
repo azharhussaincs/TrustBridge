@@ -75,6 +75,8 @@ export function SocketProvider({ children }) {
     const newSocket = io(getWebSocketUrl(), {
       auth: { token },
       reconnection: true,
+      path: '/socket.io',
+      transports: ['polling', 'websocket'],
     });
 
     newSocket.on('connect', () => {
@@ -200,18 +202,42 @@ export function SocketProvider({ children }) {
   }, [authTick, syncUnreadFromApi]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
-    if (!socket) {
-      console.warn('Socket not connected');
+    const token = getAuthToken();
+    if (!token) {
+      window.dispatchEvent(
+        new CustomEvent('message-error', { detail: { error: 'Not authenticated' } })
+      );
       return;
     }
-    const user = readStoredUser() || {};
-    socket.emit('private-message', {
-      senderId: user.id,
-      receiverId,
-      content,
-      isEncrypted,
-      fileId: fileId || null,
-    });
+
+    fetch(apiUrl('/messages'), {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        receiverId,
+        content,
+        isEncrypted,
+        fileId: fileId || null,
+      }),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setMessageStatus((prev) => ({ ...prev, [data.data.id]: 'sent' }));
+          window.dispatchEvent(new CustomEvent('message-sent', { detail: data.data }));
+        } else {
+          window.dispatchEvent(
+            new CustomEvent('message-error', {
+              detail: { error: data.message || 'Failed to send message' },
+            })
+          );
+        }
+      })
+      .catch((error) => {
+        window.dispatchEvent(
+          new CustomEvent('message-error', { detail: { error: error.message } })
+        );
+      });
   };
 
   const sendTyping = (receiverId, isTyping) => {

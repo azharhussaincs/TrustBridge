@@ -9,6 +9,9 @@ router.use(authMiddleware.authenticate);
 // Get messages between users
 router.get('/', messageController.getMessages);
 
+// Send message (REST fallback when WebSocket is unavailable)
+router.post('/', messageController.sendMessage);
+
 // Get unread count
 router.get('/unread/count', messageController.getUnreadCount);
 

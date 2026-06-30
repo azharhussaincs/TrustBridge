@@ -1,13 +1,14 @@
 const prisma = require('../../config/database');
 
 class MessageService {
-  async createMessage(senderId, receiverId, content, isEncrypted = true) {
+  async createMessage(senderId, receiverId, content, isEncrypted = true, fileId = null) {
     return await prisma.message.create({
       data: {
         senderId,
         receiverId,
         content,
-        isEncrypted
+        isEncrypted,
+        fileId: fileId || null,
       }
     });
   }
