@@ -70,21 +70,32 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [addUserId, setAddUserId] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadGroupsInFlightRef = useRef(false);
+  const groupsErrorShownRef = useRef(false);
 
   const loadGroups = useCallback(async () => {
     const token = getAuthToken();
-    if (!token) return;
+    if (!token || loadGroupsInFlightRef.current) return;
+    loadGroupsInFlightRef.current = true;
     setLoading(true);
     try {
       const res = await apiFetch('/groups', { headers: authHeaders(token) });
       const data = await res.json();
       if (data.success) {
-        setGroups(data.data);
+        setGroups(data.data ?? []);
         refreshGroupRooms();
+        groupsErrorShownRef.current = false;
+      } else if (!groupsErrorShownRef.current) {
+        groupsErrorShownRef.current = true;
+        toast.error(data.message || 'Failed to load groups');
       }
     } catch {
-      toast.error('Failed to load groups');
+      if (!groupsErrorShownRef.current) {
+        groupsErrorShownRef.current = true;
+        toast.error('Failed to load groups');
+      }
     } finally {
+      loadGroupsInFlightRef.current = false;
       setLoading(false);
     }
   }, [refreshGroupRooms]);

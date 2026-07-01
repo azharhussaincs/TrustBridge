@@ -381,10 +381,10 @@ export function SocketProvider({ children }) {
     socket.emit('group-message', { groupId, content, fileId });
   };
 
-  const refreshGroupRooms = () => {
+  const refreshGroupRooms = useCallback(() => {
     if (!socket) return;
     socket.emit('join-group-rooms');
-  };
+  }, [socket]);
 
   return (
     <SocketContext.Provider
