@@ -10,6 +10,16 @@ class GroupController {
     }
   }
 
+  async getRecentInbox(req, res) {
+    try {
+      const limit = parseInt(req.query.limit, 10) || 40;
+      const messages = await groupService.getRecentMessagesForUser(req.userId, limit);
+      res.json({ success: true, data: messages });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
   async getEligibleMembers(req, res) {
     try {
       const users = await groupService.getEligibleMembers(req.user);

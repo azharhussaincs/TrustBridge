@@ -17,3 +17,15 @@ export function notifyIncomingChatMessage(
     duration: 6000,
   });
 }
+
+export function notifyIncomingGroupMessage(
+  message: { id: string; content?: string; fileId?: string | null },
+  senderName: string,
+  groupName: string
+) {
+  const preview = getIncomingPreview(message.content, message.fileId);
+  toast.success(`👥 ${groupName} · ${senderName}: ${preview}`, {
+    id: `group-msg-${message.id}`,
+    duration: 6000,
+  });
+}

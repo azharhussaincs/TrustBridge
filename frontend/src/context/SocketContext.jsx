@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiUrl, authHeaders, getWebSocketUrl } from '@/lib/api/config';
-import { notifyIncomingChatMessage } from '@/lib/chat/notifications';
+import { notifyIncomingChatMessage, notifyIncomingGroupMessage } from '@/lib/chat/notifications';
 import { getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 const SocketContext = createContext();
@@ -20,6 +20,17 @@ async function fetchUnreadSummary(token) {
     };
   }
   return { unreadCount: 0, bySender: {} };
+}
+
+async function fetchRecentGroupMessages(token, limit = 40) {
+  const response = await fetch(apiUrl(`/groups/inbox/recent?limit=${limit}`), {
+    headers: authHeaders(token),
+  });
+  const data = await response.json();
+  if (data.success && Array.isArray(data.data)) {
+    return data.data;
+  }
+  return [];
 }
 
 async function fetchRecentMessages(token, limit = 30) {
@@ -47,7 +58,9 @@ export function SocketProvider({ children }) {
   const connectedAtRef = useRef(0);
   const activeGroupChatRef = useRef(null);
   const seenMessageIdsRef = useRef(new Set());
+  const seenGroupMessageIdsRef = useRef(new Set());
   const inboxPollReadyRef = useRef(false);
+  const groupInboxPollReadyRef = useRef(false);
   const activeDirectChatUserIdRef = useRef(null);
 
   const setActiveDirectChatUserId = useCallback((userId) => {
@@ -92,6 +105,47 @@ export function SocketProvider({ children }) {
     window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
   }, [shouldNotifyIncoming]);
 
+  const shouldNotifyGroupIncoming = useCallback((message) => {
+    const user = readStoredUser() || {};
+    if (!user.id || message.senderId === user.id) return false;
+    if (activeGroupChatRef.current === message.groupId) return false;
+    return true;
+  }, []);
+
+  const handleIncomingGroupMessage = useCallback((message, { notify = false, bumpUnread = false } = {}) => {
+    if (!message?.id) return;
+
+    if (seenGroupMessageIdsRef.current.has(message.id)) {
+      window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
+      return;
+    }
+    seenGroupMessageIdsRef.current.add(message.id);
+
+    const user = readStoredUser() || {};
+    const isViewingGroup = activeGroupChatRef.current === message.groupId;
+
+    if (bumpUnread && message.senderId !== user.id && !isViewingGroup) {
+      setGroupUnreadCount((prev) => prev + 1);
+      setGroupUnreadMessages((prev) => ({
+        ...prev,
+        [message.groupId]: (prev[message.groupId] || 0) + 1,
+      }));
+    }
+
+    if (notify && groupInboxPollReadyRef.current && shouldNotifyGroupIncoming(message)) {
+      const senderName = message.sender?.name || 'Someone';
+      const groupName = message.groupName || 'Group';
+      notifyIncomingGroupMessage(message, senderName, groupName);
+      window.dispatchEvent(
+        new CustomEvent('group-incoming-alert', {
+          detail: { message, senderName, groupName },
+        })
+      );
+    }
+
+    window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
+  }, [shouldNotifyGroupIncoming]);
+
   const syncUnreadFromApi = useCallback(async () => {
     const token = getAuthToken();
     if (!token) return;
@@ -128,6 +182,26 @@ export function SocketProvider({ children }) {
     }
   }, [handleIncomingMessage]);
 
+  const pollGroupInbox = useCallback(async () => {
+    const token = getAuthToken();
+    const user = readStoredUser() || {};
+    if (!token || !user.id) return;
+
+    try {
+      const recent = await fetchRecentGroupMessages(token, 40);
+      for (const message of recent) {
+        handleIncomingGroupMessage(message, { notify: true });
+      }
+      groupInboxPollReadyRef.current = true;
+    } catch (error) {
+      console.error('Failed to poll group inbox:', error);
+    }
+  }, [handleIncomingGroupMessage]);
+
+  const pollInboxAll = useCallback(async () => {
+    await Promise.all([pollInbox(), pollGroupInbox()]);
+  }, [pollInbox, pollGroupInbox]);
+
   useEffect(() => {
     const onAuthChange = () => setAuthTick((t) => t + 1);
     window.addEventListener('auth-changed', onAuthChange);
@@ -144,11 +218,13 @@ export function SocketProvider({ children }) {
     if (!token || !user.id) return undefined;
 
     inboxPollReadyRef.current = false;
+    groupInboxPollReadyRef.current = false;
     seenMessageIdsRef.current = new Set();
-    pollInbox();
-    const intervalId = setInterval(pollInbox, 5000);
+    seenGroupMessageIdsRef.current = new Set();
+    pollInboxAll();
+    const intervalId = setInterval(pollInboxAll, 5000);
     return () => clearInterval(intervalId);
-  }, [authTick, pollInbox]);
+  }, [authTick, pollInboxAll]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -177,7 +253,7 @@ export function SocketProvider({ children }) {
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
       syncUnreadFromApi();
-      pollInbox();
+      pollInboxAll();
       newSocket.emit('get-unread-count', user.id);
     });
 
@@ -229,34 +305,7 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('new-group-message', (message) => {
-      const currentUser = readStoredUser() || {};
-
-      if (message.senderId !== currentUser.id) {
-        const isViewingGroup = activeGroupChatRef.current === message.groupId;
-
-        if (!isViewingGroup) {
-          setGroupUnreadCount((prev) => prev + 1);
-          setGroupUnreadMessages((prev) => ({
-            ...prev,
-            [message.groupId]: (prev[message.groupId] || 0) + 1,
-          }));
-
-          const msgTime = message.createdAt ? new Date(message.createdAt).getTime() : Date.now();
-          const isLiveMessage = msgTime >= connectedAtRef.current - 5000;
-
-          if (isLiveMessage) {
-            const senderName = message.sender?.name || 'Someone';
-            const groupName = message.groupName || 'Group';
-            const content = message.content || '📎 File shared';
-            const preview = typeof content === 'string' ? content.substring(0, 30) : '📎 File';
-            toast.success(
-              `👥 ${groupName} · ${senderName}: ${preview}${content.length > 30 ? '...' : ''}`
-            );
-          }
-        }
-      }
-
-      window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
+      handleIncomingGroupMessage(message, { notify: true, bumpUnread: true });
     });
 
     newSocket.on('group-message-sent', (message) => {
@@ -272,7 +321,7 @@ export function SocketProvider({ children }) {
     return () => {
       newSocket.disconnect();
     };
-  }, [authTick, syncUnreadFromApi, pollInbox, handleIncomingMessage]);
+  }, [authTick, syncUnreadFromApi, pollInboxAll, handleIncomingMessage, handleIncomingGroupMessage]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     const token = getAuthToken();
@@ -440,6 +489,8 @@ export function SocketProvider({ children }) {
         setActiveDirectChatUserId,
         syncUnreadFromApi,
         pollInbox,
+        pollGroupInbox,
+        pollInboxAll,
       }}
     >
       {children}

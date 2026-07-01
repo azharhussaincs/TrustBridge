@@ -6,6 +6,7 @@ const authMiddleware = require('../auth/auth.middleware');
 router.use(authMiddleware.authenticate);
 
 router.get('/', groupController.listGroups);
+router.get('/inbox/recent', groupController.getRecentInbox);
 router.get('/eligible-members', groupController.getEligibleMembers);
 router.post('/', groupController.createGroup);
 router.post('/:id/messages', groupController.sendMessage);

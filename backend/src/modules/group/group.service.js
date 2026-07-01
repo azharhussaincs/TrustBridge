@@ -273,6 +273,43 @@ class GroupService {
     });
     return memberships.map((m) => m.groupId);
   }
+
+  async getRecentMessagesForUser(userId, limit = 40) {
+    const groupIds = await this.getUserGroupIds(userId);
+    if (!groupIds.length) return [];
+
+    const messages = await prisma.groupMessage.findMany({
+      where: {
+        groupId: { in: groupIds },
+        senderId: { not: userId },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    if (!messages.length) return [];
+
+    const senderIds = [...new Set(messages.map((m) => m.senderId))];
+    const [senders, groups] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: senderIds } },
+        select: { id: true, name: true, username: true },
+      }),
+      prisma.chatGroup.findMany({
+        where: { id: { in: groupIds } },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    const senderById = Object.fromEntries(senders.map((s) => [s.id, s]));
+    const groupById = Object.fromEntries(groups.map((g) => [g.id, g]));
+
+    return messages.map((message) => ({
+      ...message,
+      sender: senderById[message.senderId] || null,
+      groupName: groupById[message.groupId]?.name || 'Group',
+    }));
+  }
 }
 
 module.exports = new GroupService();

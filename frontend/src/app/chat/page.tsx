@@ -79,7 +79,7 @@ export default function ChatPage() {
     unreadCount,
     groupUnreadCount = 0,
     groupUnreadMessages = {},
-    totalUnreadCount = unreadCount,
+    totalUnreadCount = unreadCount + groupUnreadCount,
     unreadMessages,
     messageStatus = {},
     typingUsers = {},
@@ -111,6 +111,12 @@ export default function ChatPage() {
   const [chatMode, setChatMode] = useState<'direct' | 'groups'>('direct');
   const [incomingAlert, setIncomingAlert] = useState<{
     senderId: string;
+    senderName: string;
+    preview: string;
+  } | null>(null);
+  const [groupIncomingAlert, setGroupIncomingAlert] = useState<{
+    groupId: string;
+    groupName: string;
     senderName: string;
     preview: string;
   } | null>(null);
@@ -226,6 +232,27 @@ export default function ChatPage() {
       window.removeEventListener('chat-incoming-alert', onIncomingAlert as EventListener);
     };
   }, [currentUser?.id, selectedUser?.id]);
+
+  useEffect(() => {
+    const onGroupIncomingAlert = (event: CustomEvent) => {
+      const { message, senderName, groupName } = event.detail as {
+        message: { groupId: string; content?: string; fileId?: string | null };
+        senderName: string;
+        groupName: string;
+      };
+      setGroupIncomingAlert({
+        groupId: message.groupId,
+        groupName,
+        senderName,
+        preview: getIncomingPreview(message.content, message.fileId),
+      });
+    };
+
+    window.addEventListener('group-incoming-alert', onGroupIncomingAlert as EventListener);
+    return () => {
+      window.removeEventListener('group-incoming-alert', onGroupIncomingAlert as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -734,6 +761,26 @@ export default function ChatPage() {
             <span className="font-semibold">💬 New message from {incomingAlert.senderName}</span>
             <span className="mt-0.5 block truncate text-sm opacity-90">{incomingAlert.preview}</span>
             <span className="mt-1 block text-xs opacity-75">Tap to open conversation</span>
+          </button>
+        )}
+
+        {groupIncomingAlert && (
+          <button
+            type="button"
+            onClick={() => {
+              setChatMode('groups');
+              window.dispatchEvent(
+                new CustomEvent('open-group-chat', { detail: { groupId: groupIncomingAlert.groupId } })
+              );
+              setGroupIncomingAlert(null);
+            }}
+            className="chat-notification-banner mb-4 w-full text-left"
+          >
+            <span className="font-semibold">
+              👥 {groupIncomingAlert.groupName} · {groupIncomingAlert.senderName}
+            </span>
+            <span className="mt-0.5 block truncate text-sm opacity-90">{groupIncomingAlert.preview}</span>
+            <span className="mt-1 block text-xs opacity-75">Tap to open group chat</span>
           </button>
         )}
 

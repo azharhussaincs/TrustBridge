@@ -147,6 +147,15 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
   }, [canManage]);
 
   useEffect(() => {
+    const onOpenGroup = (e: CustomEvent) => {
+      const groupId = e.detail?.groupId as string | undefined;
+      if (groupId) setSelectedGroupId(groupId);
+    };
+    window.addEventListener('open-group-chat', onOpenGroup as EventListener);
+    return () => window.removeEventListener('open-group-chat', onOpenGroup as EventListener);
+  }, []);
+
+  useEffect(() => {
     loadGroups();
   }, [loadGroups]);
 
