@@ -76,6 +76,36 @@ class GroupController {
       res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  async sendMessage(req, res) {
+    try {
+      const { content, fileId } = req.body;
+      const groupId = req.params.id;
+
+      if (!content?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Message content is required',
+        });
+      }
+
+      const message = await groupService.createMessage(
+        groupId,
+        req.userId,
+        content.trim(),
+        fileId || null
+      );
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`group:${groupId}`).emit('new-group-message', message);
+      }
+
+      res.status(201).json({ success: true, data: message });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
 }
 
 module.exports = new GroupController();

@@ -377,8 +377,36 @@ export function SocketProvider({ children }) {
   }, [clearUnreadForGroup]);
 
   const sendGroupMessage = (groupId, content, fileId = null) => {
-    if (!socket) return;
-    socket.emit('group-message', { groupId, content, fileId });
+    const token = getAuthToken();
+    if (!token) {
+      window.dispatchEvent(
+        new CustomEvent('group-message-error', { detail: { error: 'Not authenticated' } })
+      );
+      return;
+    }
+
+    fetch(apiUrl(`/groups/${groupId}/messages`), {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, fileId: fileId || null }),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (data.success && data.data) {
+          window.dispatchEvent(new CustomEvent('group-message-sent', { detail: data.data }));
+        } else {
+          window.dispatchEvent(
+            new CustomEvent('group-message-error', {
+              detail: { error: data.message || 'Failed to send group message' },
+            })
+          );
+        }
+      })
+      .catch((error) => {
+        window.dispatchEvent(
+          new CustomEvent('group-message-error', { detail: { error: error.message } })
+        );
+      });
   };
 
   const refreshGroupRooms = useCallback(() => {

@@ -8,6 +8,7 @@ router.use(authMiddleware.authenticate);
 router.get('/', groupController.listGroups);
 router.get('/eligible-members', groupController.getEligibleMembers);
 router.post('/', groupController.createGroup);
+router.post('/:id/messages', groupController.sendMessage);
 router.get('/:id/messages', groupController.getMessages);
 router.get('/:id', groupController.getGroup);
 router.post('/:id/members', groupController.addMember);
