@@ -55,6 +55,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
     refreshGroupRooms,
     groupUnreadMessages = {},
     setActiveGroupChatId,
+    clearUnreadForGroup,
   } = useSocket();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -123,13 +124,14 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
       const data = await res.json();
       if (data.success) {
         setMessages(data.data);
+        clearUnreadForGroup(groupId, (data.data ?? []).map((m: GroupMessage) => m.id));
       }
     } catch {
       toast.error('Failed to load group messages');
     } finally {
       setMessagesLoading(false);
     }
-  }, []);
+  }, [clearUnreadForGroup]);
 
   const loadEligible = useCallback(async () => {
     if (!canManage) return;
@@ -349,7 +351,8 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
         ) : (
           <div className="flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:max-h-none">
             {groups.map((g) => {
-              const groupUnread = groupUnreadMessages[g.id] || 0;
+              const groupUnread =
+                selectedGroupId === g.id ? 0 : (groupUnreadMessages[g.id] || 0);
               return (
               <button
                 key={g.id}

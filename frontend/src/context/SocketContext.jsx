@@ -63,6 +63,8 @@ export function SocketProvider({ children }) {
   const groupInboxPollReadyRef = useRef(false);
   const activeDirectChatUserIdRef = useRef(null);
   const socketRef = useRef(null);
+  const readGroupMessageIdsRef = useRef(new Set());
+  const lastGroupRecentRef = useRef([]);
 
   const setActiveDirectChatUserId = useCallback((userId) => {
     activeDirectChatUserIdRef.current = userId || null;
@@ -106,6 +108,46 @@ export function SocketProvider({ children }) {
     window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
   }, [shouldNotifyIncoming]);
 
+  const recomputeGroupUnread = useCallback(() => {
+    const user = readStoredUser() || {};
+    const recent = lastGroupRecentRef.current;
+    const activeGroup = activeGroupChatRef.current;
+    const byGroup = {};
+    let total = 0;
+
+    for (const message of recent) {
+      const groupId = message?.groupId;
+      if (!groupId || !message.id || message.senderId === user.id) continue;
+      if (groupId === activeGroup) continue;
+      if (readGroupMessageIdsRef.current.has(message.id)) continue;
+      byGroup[groupId] = (byGroup[groupId] || 0) + 1;
+      total += 1;
+    }
+
+    setGroupUnreadMessages(byGroup);
+    setGroupUnreadCount(total);
+  }, []);
+
+  const upsertGroupRecent = useCallback((message) => {
+    if (!message?.id) return;
+    const current = lastGroupRecentRef.current;
+    if (current.some((entry) => entry.id === message.id)) return;
+    lastGroupRecentRef.current = [message, ...current].slice(0, 40);
+  }, []);
+
+  const markGroupMessagesAsRead = useCallback((groupId, extraMessageIds = []) => {
+    if (!groupId) return;
+    for (const messageId of extraMessageIds) {
+      if (messageId) readGroupMessageIdsRef.current.add(messageId);
+    }
+    for (const message of lastGroupRecentRef.current) {
+      if (message?.groupId === groupId && message?.id) {
+        readGroupMessageIdsRef.current.add(message.id);
+      }
+    }
+    recomputeGroupUnread();
+  }, [recomputeGroupUnread]);
+
   const shouldNotifyGroupIncoming = useCallback((message) => {
     const user = readStoredUser() || {};
     if (!user.id || message.senderId === user.id) return false;
@@ -113,7 +155,7 @@ export function SocketProvider({ children }) {
     return true;
   }, []);
 
-  const handleIncomingGroupMessage = useCallback((message, { notify = false, bumpUnread = false } = {}) => {
+  const handleIncomingGroupMessage = useCallback((message, { notify = false } = {}) => {
     if (!message?.id) return;
 
     if (seenGroupMessageIdsRef.current.has(message.id)) {
@@ -122,15 +164,8 @@ export function SocketProvider({ children }) {
     }
     seenGroupMessageIdsRef.current.add(message.id);
 
-    const user = readStoredUser() || {};
-    const isViewingGroup = activeGroupChatRef.current === message.groupId;
-
-    if (bumpUnread && message.senderId !== user.id && !isViewingGroup) {
-      setGroupUnreadCount((prev) => prev + 1);
-      setGroupUnreadMessages((prev) => ({
-        ...prev,
-        [message.groupId]: (prev[message.groupId] || 0) + 1,
-      }));
+    if (activeGroupChatRef.current === message.groupId) {
+      readGroupMessageIdsRef.current.add(message.id);
     }
 
     if (notify && shouldNotifyGroupIncoming(message)) {
@@ -194,23 +229,29 @@ export function SocketProvider({ children }) {
 
     try {
       const recent = await fetchRecentGroupMessages(token, 40);
+      lastGroupRecentRef.current = recent;
 
       if (!groupInboxPollReadyRef.current) {
         for (const message of recent) {
-          if (message?.id) seenGroupMessageIdsRef.current.add(message.id);
+          if (message?.id) {
+            seenGroupMessageIdsRef.current.add(message.id);
+            readGroupMessageIdsRef.current.add(message.id);
+          }
         }
         groupInboxPollReadyRef.current = true;
+        recomputeGroupUnread();
         return;
       }
 
       for (const message of recent) {
         if (!message?.id || seenGroupMessageIdsRef.current.has(message.id)) continue;
-        handleIncomingGroupMessage(message, { notify: true, bumpUnread: true });
+        handleIncomingGroupMessage(message, { notify: true });
       }
+      recomputeGroupUnread();
     } catch (error) {
       console.error('Failed to poll group inbox:', error);
     }
-  }, [handleIncomingGroupMessage]);
+  }, [handleIncomingGroupMessage, recomputeGroupUnread]);
 
   const pollInboxAll = useCallback(async () => {
     await Promise.all([pollInbox(), pollGroupInbox()]);
@@ -235,6 +276,8 @@ export function SocketProvider({ children }) {
     groupInboxPollReadyRef.current = false;
     seenMessageIdsRef.current = new Set();
     seenGroupMessageIdsRef.current = new Set();
+    readGroupMessageIdsRef.current = new Set();
+    lastGroupRecentRef.current = [];
     pollInboxAll();
     const intervalId = setInterval(pollInboxAll, 5000);
     return () => clearInterval(intervalId);
@@ -320,7 +363,9 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('new-group-message', (message) => {
-      handleIncomingGroupMessage(message, { notify: true, bumpUnread: true });
+      upsertGroupRecent(message);
+      handleIncomingGroupMessage(message, { notify: true });
+      recomputeGroupUnread();
     });
 
     newSocket.on('group-message-sent', (message) => {
@@ -338,7 +383,7 @@ export function SocketProvider({ children }) {
       socketRef.current = null;
       newSocket.disconnect();
     };
-  }, [authTick, syncUnreadFromApi, pollInboxAll, handleIncomingMessage, handleIncomingGroupMessage]);
+  }, [authTick, syncUnreadFromApi, pollInboxAll, handleIncomingMessage, handleIncomingGroupMessage, upsertGroupRecent, recomputeGroupUnread]);
 
   const sendMessage = (receiverId, content, isEncrypted = true, fileId = null) => {
     const token = getAuthToken();
@@ -423,24 +468,20 @@ export function SocketProvider({ children }) {
     });
   };
 
-  const clearUnreadForGroup = useCallback((groupId) => {
-    if (!groupId) return;
-    setGroupUnreadMessages((prev) => {
-      const cleared = prev[groupId] || 0;
-      if (cleared <= 0) return prev;
-      setGroupUnreadCount((count) => Math.max(0, count - cleared));
-      return { ...prev, [groupId]: 0 };
-    });
-  }, []);
+  const clearUnreadForGroup = useCallback((groupId, messageIds = []) => {
+    markGroupMessagesAsRead(groupId, messageIds);
+  }, [markGroupMessagesAsRead]);
 
   const setActiveGroupChatId = useCallback((groupId) => {
     const nextId = groupId || null;
     if (activeGroupChatRef.current === nextId) return;
     activeGroupChatRef.current = nextId;
     if (nextId) {
-      clearUnreadForGroup(nextId);
+      markGroupMessagesAsRead(nextId);
+    } else {
+      recomputeGroupUnread();
     }
-  }, [clearUnreadForGroup]);
+  }, [markGroupMessagesAsRead, recomputeGroupUnread]);
 
   const sendGroupMessage = (groupId, content, fileId = null) => {
     const token = getAuthToken();
