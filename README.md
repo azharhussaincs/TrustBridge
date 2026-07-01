@@ -33,6 +33,7 @@
 - [Docker Deployment](#docker-deployment)
 - [Docker Compose Deployment](#docker-compose-deployment)
 - [NGINX Deployment](#nginx-deployment)
+- [CI/CD Auto Deploy (GitHub Actions)](#cicd-auto-deploy-github-actions)
 - [Production Deployment](#production-deployment)
 - [Backup Strategy](#backup-strategy)
 - [Security Features](#security-features)
@@ -920,6 +921,93 @@ Reverse proxy configuration for port 80/443 with WebSocket upgrade support — s
 
 ---
 
+---
+
+## CI/CD Auto Deploy (GitHub Actions)
+
+Push to `main` triggers **Deploy to VM** (`.github/workflows/deploy.yml`). It runs on a **self-hosted runner** on the VM — label `opbridge`.
+
+### Infrastructure
+
+| Item | Value |
+|------|--------|
+| Proxmox host | `https://192.168.18.9:8006` |
+| OpBridge VM IP | `192.168.18.141` (static) |
+| App URL | `http://192.168.18.141:3000/login` |
+| Deploy path on VM | `/opt/TrustBridge` |
+| Process manager | PM2 (`opbridge-api`, `opbridge-web`) |
+
+### Why workflows stay **Queued**
+
+GitHub Actions shows **Queued** when the **self-hosted runner is offline**. That happens when:
+
+1. The VM `192.168.18.141` is **powered off** in Proxmox  
+2. The VM is on but the **runner service** is stopped  
+3. Your PC cannot reach the VM network (different VLAN / VPN / cable)
+
+**Queued ≠ failed** — jobs run automatically once the VM and runner are online.
+
+### One-time setup on the VM (already done if deploy #1–3 succeeded)
+
+```bash
+# On VM 192.168.18.141 — register GitHub runner
+export GITHUB_RUNNER_TOKEN="token-from-github-settings-actions-runners"
+bash /opt/TrustBridge/deploy/setup-github-runner.sh
+```
+
+### Fix: start VM + deploy + runner
+
+**A. From Proxmox web UI** (`https://192.168.18.9:8006`)
+
+1. Log in → select the OpBridge VM → **Start**  
+2. Wait 1–2 minutes for boot  
+
+**B. From your PC (same LAN as Proxmox)** — start VM via API:
+
+```bash
+export PROXMOX_HOST=192.168.18.9
+export PROXMOX_USER=azhar@pam
+export PROXMOX_PASS='your-proxmox-password'   # never commit this
+bash deploy/proxmox-start-vm.sh
+```
+
+**C. SSH to VM and deploy latest code:**
+
+```bash
+ssh admin@192.168.18.141
+cd /opt/TrustBridge && bash deploy/server-deploy.sh
+```
+
+**D. Start GitHub runner (clears Queued jobs):**
+
+```bash
+cd ~/actions-runner && sudo ./svc.sh start
+sudo ./svc.sh status
+```
+
+Queued workflows will then run within 1–2 minutes.
+
+### Manual deploy without waiting for runner
+
+```bash
+ssh admin@192.168.18.141
+cd /opt/TrustBridge && git pull origin main && bash deploy/ci-deploy.sh
+```
+
+### From dev PC (when VM is online)
+
+```bash
+bash deploy/deploy-to-vm.sh admin
+```
+
+### Security
+
+- Store Proxmox and VM passwords in a password manager — **never** commit them to Git  
+- Change default VM password (`admin`) after first login  
+- Rotate secrets if they were shared in chat or tickets  
+
+---
+
 ## Production Deployment
 
 | Step | Action |
@@ -979,7 +1067,8 @@ Full audit: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
 | 500 on frontend pages | `rm -rf frontend/.next && npm run dev:clean` |
 | Login works, no users in chat | Verify backend running; open app via same hostname as API |
 | Prisma client error | `npx prisma generate` + restart backend |
-| Port in use | `lsof -i :5000` (Linux) and stop duplicate process |
+| Deploy workflow stuck **Queued** | VM off or runner stopped — start VM in Proxmox, then `sudo ./svc.sh start` in `~/actions-runner` on VM |
+| `192.168.18.141` unreachable | Power on VM at `https://192.168.18.9:8006` or run `deploy/proxmox-start-vm.sh` |
 
 ---
 
