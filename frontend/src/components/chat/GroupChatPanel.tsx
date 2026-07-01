@@ -53,7 +53,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
   const {
     sendGroupMessage,
     refreshGroupRooms,
-    unreadGroupMessages = {},
+    groupUnreadMessages = {},
     setActiveGroupChatId,
   } = useSocket();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -349,7 +349,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
         ) : (
           <div className="flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:max-h-none">
             {groups.map((g) => {
-              const groupUnread = unreadGroupMessages[g.id] || 0;
+              const groupUnread = groupUnreadMessages[g.id] || 0;
               return (
               <button
                 key={g.id}
@@ -362,7 +362,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <div>
-                    <div className="font-medium text-white">{g.name}</div>
+                    <div className={cn('font-medium text-white', groupUnread > 0 && 'font-bold')}>{g.name}</div>
                     <div className="text-xs text-blue-200/70">{g.memberCount} members</div>
                   </div>
                   {groupUnread > 0 && (
