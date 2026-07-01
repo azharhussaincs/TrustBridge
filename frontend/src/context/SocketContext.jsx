@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiUrl, authHeaders, getWebSocketUrl } from '@/lib/api/config';
-import { notifyIncomingChatMessage, notifyIncomingGroupMessage } from '@/lib/chat/notifications';
+import { notifyIncomingChatMessage, notifyIncomingGroupMessage, unlockMessageAudio } from '@/lib/chat/notifications';
 import { getAuthToken, readStoredUser } from '@/lib/auth/session';
 
 const SocketContext = createContext();
@@ -64,7 +64,7 @@ export function SocketProvider({ children }) {
   const activeDirectChatUserIdRef = useRef(null);
   const socketRef = useRef(null);
   const readGroupMessageIdsRef = useRef(new Set());
-  const baselineGroupMessageIdsRef = useRef(new Set());
+  const sessionStartedAtRef = useRef(Date.now());
   const lastGroupRecentRef = useRef([]);
 
   const setActiveDirectChatUserId = useCallback((userId) => {
@@ -109,6 +109,20 @@ export function SocketProvider({ children }) {
     window.dispatchEvent(new CustomEvent('new-message', { detail: message }));
   }, [shouldNotifyIncoming]);
 
+  const isUnreadGroupMessage = useCallback((message, userId, activeGroup) => {
+    const groupId = message?.groupId;
+    if (!groupId || !message?.id || message.senderId === userId) return false;
+    if (groupId === activeGroup) return false;
+    if (readGroupMessageIdsRef.current.has(message.id)) return false;
+
+    const messageTime = new Date(message.createdAt).getTime();
+    if (Number.isFinite(messageTime) && messageTime < sessionStartedAtRef.current - 500) {
+      return false;
+    }
+
+    return true;
+  }, []);
+
   const recomputeGroupUnread = useCallback(() => {
     const user = readStoredUser() || {};
     const recent = lastGroupRecentRef.current;
@@ -117,18 +131,14 @@ export function SocketProvider({ children }) {
     let total = 0;
 
     for (const message of recent) {
-      const groupId = message?.groupId;
-      if (!groupId || !message.id || message.senderId === user.id) continue;
-      if (groupId === activeGroup) continue;
-      if (baselineGroupMessageIdsRef.current.has(message.id)) continue;
-      if (readGroupMessageIdsRef.current.has(message.id)) continue;
-      byGroup[groupId] = (byGroup[groupId] || 0) + 1;
+      if (!isUnreadGroupMessage(message, user.id, activeGroup)) continue;
+      byGroup[message.groupId] = (byGroup[message.groupId] || 0) + 1;
       total += 1;
     }
 
     setGroupUnreadMessages(byGroup);
     setGroupUnreadCount(total);
-  }, []);
+  }, [isUnreadGroupMessage]);
 
   const upsertGroupRecent = useCallback((message) => {
     if (!message?.id) return;
@@ -166,6 +176,7 @@ export function SocketProvider({ children }) {
     }
     seenGroupMessageIdsRef.current.add(message.id);
 
+    const user = readStoredUser() || {};
     const isViewingGroup = activeGroupChatRef.current === message.groupId;
     if (isViewingGroup) {
       readGroupMessageIdsRef.current.add(message.id);
@@ -177,7 +188,10 @@ export function SocketProvider({ children }) {
       (!fromPoll || groupInboxPollReadyRef.current);
 
     if (shouldNotify) {
-      const senderName = message.sender?.name || message.sender?.username || 'Someone';
+      const senderName =
+        message.sender?.name ||
+        message.sender?.username ||
+        'Someone';
       const groupName = message.groupName || 'Group';
       notifyIncomingGroupMessage(message, senderName, groupName);
       window.dispatchEvent(
@@ -187,8 +201,12 @@ export function SocketProvider({ children }) {
       );
     }
 
+    if (message.senderId !== user.id && !isViewingGroup) {
+      recomputeGroupUnread();
+    }
+
     window.dispatchEvent(new CustomEvent('new-group-message', { detail: message }));
-  }, [shouldNotifyGroupIncoming]);
+  }, [shouldNotifyGroupIncoming, recomputeGroupUnread]);
 
   const syncUnreadFromApi = useCallback(async () => {
     const token = getAuthToken();
@@ -243,7 +261,6 @@ export function SocketProvider({ children }) {
         for (const message of recent) {
           if (message?.id) {
             seenGroupMessageIdsRef.current.add(message.id);
-            baselineGroupMessageIdsRef.current.add(message.id);
           }
         }
         groupInboxPollReadyRef.current = true;
@@ -251,11 +268,15 @@ export function SocketProvider({ children }) {
         return;
       }
 
+      let hasNewMessages = false;
       for (const message of recent) {
         if (!message?.id || seenGroupMessageIdsRef.current.has(message.id)) continue;
+        hasNewMessages = true;
         handleIncomingGroupMessage(message, { notify: true, fromPoll: true });
       }
-      recomputeGroupUnread();
+      if (hasNewMessages) {
+        recomputeGroupUnread();
+      }
     } catch (error) {
       console.error('Failed to poll group inbox:', error);
     }
@@ -264,6 +285,16 @@ export function SocketProvider({ children }) {
   const pollInboxAll = useCallback(async () => {
     await Promise.all([pollInbox(), pollGroupInbox()]);
   }, [pollInbox, pollGroupInbox]);
+
+  useEffect(() => {
+    const unlock = () => unlockMessageAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   useEffect(() => {
     const onAuthChange = () => setAuthTick((t) => t + 1);
@@ -285,7 +316,7 @@ export function SocketProvider({ children }) {
     seenMessageIdsRef.current = new Set();
     seenGroupMessageIdsRef.current = new Set();
     readGroupMessageIdsRef.current = new Set();
-    baselineGroupMessageIdsRef.current = new Set();
+    sessionStartedAtRef.current = Date.now();
     lastGroupRecentRef.current = [];
     pollInboxAll();
     const intervalId = setInterval(pollInboxAll, 5000);
@@ -483,13 +514,15 @@ export function SocketProvider({ children }) {
 
   const setActiveGroupChatId = useCallback((groupId) => {
     const nextId = groupId || null;
-    if (activeGroupChatRef.current === nextId) return;
+    const prevId = activeGroupChatRef.current;
     activeGroupChatRef.current = nextId;
     if (nextId) {
-      markGroupMessagesAsRead(nextId);
-    } else {
-      recomputeGroupUnread();
+      if (nextId !== prevId) {
+        markGroupMessagesAsRead(nextId);
+      }
+      return;
     }
+    recomputeGroupUnread();
   }, [markGroupMessagesAsRead, recomputeGroupUnread]);
 
   const sendGroupMessage = (groupId, content, fileId = null) => {

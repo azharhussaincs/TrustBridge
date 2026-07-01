@@ -354,11 +354,17 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
 
   const memberName = (msg: GroupMessage) => {
     if (msg.senderId === currentUser.id) return 'You';
-    if (msg.sender?.name) return msg.sender.name;
     const member = groupDetails?.members.find((m) => m.id === msg.senderId);
-    if (member?.name) return member.name;
-    if (msg.sender?.username) return msg.sender.username;
-    if (member?.username) return member.username;
+    const name = (member?.name || msg.sender?.name || '').trim();
+    const username = (member?.username || msg.sender?.username || '').trim();
+    const role = member?.role || msg.sender?.role;
+
+    if (name && username && name === username && role) {
+      return getRoleLabel(role);
+    }
+    if (name) return name;
+    if (username) return username;
+    if (role) return getRoleLabel(role);
     return 'Unknown member';
   };
 
