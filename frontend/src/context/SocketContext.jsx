@@ -64,6 +64,7 @@ export function SocketProvider({ children }) {
   const activeDirectChatUserIdRef = useRef(null);
   const socketRef = useRef(null);
   const readGroupMessageIdsRef = useRef(new Set());
+  const baselineGroupMessageIdsRef = useRef(new Set());
   const lastGroupRecentRef = useRef([]);
 
   const setActiveDirectChatUserId = useCallback((userId) => {
@@ -119,6 +120,7 @@ export function SocketProvider({ children }) {
       const groupId = message?.groupId;
       if (!groupId || !message.id || message.senderId === user.id) continue;
       if (groupId === activeGroup) continue;
+      if (baselineGroupMessageIdsRef.current.has(message.id)) continue;
       if (readGroupMessageIdsRef.current.has(message.id)) continue;
       byGroup[groupId] = (byGroup[groupId] || 0) + 1;
       total += 1;
@@ -155,7 +157,7 @@ export function SocketProvider({ children }) {
     return true;
   }, []);
 
-  const handleIncomingGroupMessage = useCallback((message, { notify = false } = {}) => {
+  const handleIncomingGroupMessage = useCallback((message, { notify = false, fromPoll = false } = {}) => {
     if (!message?.id) return;
 
     if (seenGroupMessageIdsRef.current.has(message.id)) {
@@ -164,12 +166,18 @@ export function SocketProvider({ children }) {
     }
     seenGroupMessageIdsRef.current.add(message.id);
 
-    if (activeGroupChatRef.current === message.groupId) {
+    const isViewingGroup = activeGroupChatRef.current === message.groupId;
+    if (isViewingGroup) {
       readGroupMessageIdsRef.current.add(message.id);
     }
 
-    if (notify && shouldNotifyGroupIncoming(message)) {
-      const senderName = message.sender?.name || 'Someone';
+    const shouldNotify =
+      notify &&
+      shouldNotifyGroupIncoming(message) &&
+      (!fromPoll || groupInboxPollReadyRef.current);
+
+    if (shouldNotify) {
+      const senderName = message.sender?.name || message.sender?.username || 'Someone';
       const groupName = message.groupName || 'Group';
       notifyIncomingGroupMessage(message, senderName, groupName);
       window.dispatchEvent(
@@ -235,7 +243,7 @@ export function SocketProvider({ children }) {
         for (const message of recent) {
           if (message?.id) {
             seenGroupMessageIdsRef.current.add(message.id);
-            readGroupMessageIdsRef.current.add(message.id);
+            baselineGroupMessageIdsRef.current.add(message.id);
           }
         }
         groupInboxPollReadyRef.current = true;
@@ -245,7 +253,7 @@ export function SocketProvider({ children }) {
 
       for (const message of recent) {
         if (!message?.id || seenGroupMessageIdsRef.current.has(message.id)) continue;
-        handleIncomingGroupMessage(message, { notify: true });
+        handleIncomingGroupMessage(message, { notify: true, fromPoll: true });
       }
       recomputeGroupUnread();
     } catch (error) {
@@ -277,6 +285,7 @@ export function SocketProvider({ children }) {
     seenMessageIdsRef.current = new Set();
     seenGroupMessageIdsRef.current = new Set();
     readGroupMessageIdsRef.current = new Set();
+    baselineGroupMessageIdsRef.current = new Set();
     lastGroupRecentRef.current = [];
     pollInboxAll();
     const intervalId = setInterval(pollInboxAll, 5000);
@@ -364,7 +373,7 @@ export function SocketProvider({ children }) {
 
     newSocket.on('new-group-message', (message) => {
       upsertGroupRecent(message);
-      handleIncomingGroupMessage(message, { notify: true });
+      handleIncomingGroupMessage(message, { notify: true, fromPoll: false });
       recomputeGroupUnread();
     });
 

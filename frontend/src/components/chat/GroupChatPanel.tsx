@@ -132,14 +132,13 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
       const data = await res.json();
       if (data.success) {
         setMessages(data.data);
-        clearUnreadForGroup(groupId, (data.data ?? []).map((m: GroupMessage) => m.id));
       }
     } catch {
       toast.error('Failed to load group messages');
     } finally {
       setMessagesLoading(false);
     }
-  }, [clearUnreadForGroup]);
+  }, []);
 
   const loadEligible = useCallback(async () => {
     if (!canManage) return;
@@ -176,9 +175,19 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
       return;
     }
     setGroupDetails(null);
+    setMessages([]);
     loadGroupDetails(selectedGroupId);
     loadMessages(selectedGroupId);
   }, [selectedGroupId, loadGroupDetails, loadMessages]);
+
+  useEffect(() => {
+    if (!selectedGroupId || messages.length === 0) return;
+    const groupMessageIds = messages
+      .filter((message) => message.groupId === selectedGroupId)
+      .map((message) => message.id);
+    if (!groupMessageIds.length) return;
+    clearUnreadForGroup(selectedGroupId, groupMessageIds);
+  }, [selectedGroupId, messages, clearUnreadForGroup]);
 
   useEffect(() => {
     if (!selectedGroupId) {
@@ -196,14 +205,32 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const enrichMessage = useCallback(
+    (msg: GroupMessage): GroupMessage => {
+      if (msg.sender?.name) return msg;
+      const member = groupDetails?.members.find((m) => m.id === msg.senderId);
+      if (!member) return msg;
+      return {
+        ...msg,
+        sender: {
+          id: member.id,
+          name: member.name,
+          username: member.username,
+          role: member.role,
+        },
+      };
+    },
+    [groupDetails]
+  );
+
   useEffect(() => {
     const onNew = (e: CustomEvent) => {
-      const msg = e.detail as GroupMessage;
+      const msg = enrichMessage(e.detail as GroupMessage);
       if (msg.groupId !== selectedGroupId) return;
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     };
     const onSent = (e: CustomEvent) => {
-      const msg = e.detail as GroupMessage;
+      const msg = enrichMessage(e.detail as GroupMessage);
       if (msg.groupId !== selectedGroupId) return;
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     };
@@ -219,7 +246,7 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
       window.removeEventListener('group-message-sent', onSent as EventListener);
       window.removeEventListener('group-message-error', onError as EventListener);
     };
-  }, [selectedGroupId]);
+  }, [selectedGroupId, enrichMessage]);
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
