@@ -28,6 +28,13 @@ interface GroupMember {
   role: string;
 }
 
+interface GroupMessageSender {
+  id: string;
+  name: string;
+  username: string;
+  role?: string;
+}
+
 interface GroupMessage {
   id: string;
   groupId: string;
@@ -35,6 +42,7 @@ interface GroupMessage {
   content: string;
   fileId: string | null;
   createdAt: string;
+  sender?: GroupMessageSender | null;
 }
 
 interface EligibleUser {
@@ -317,9 +325,27 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
     setMessage('');
   };
 
-  const memberName = (senderId: string) => {
-    const member = groupDetails?.members.find((m) => m.id === senderId);
-    return member?.name || 'User';
+  const memberName = (msg: GroupMessage) => {
+    if (msg.senderId === currentUser.id) return 'You';
+    if (msg.sender?.name) return msg.sender.name;
+    const member = groupDetails?.members.find((m) => m.id === msg.senderId);
+    if (member?.name) return member.name;
+    if (msg.sender?.username) return msg.sender.username;
+    if (member?.username) return member.username;
+    return 'Unknown member';
+  };
+
+  const senderSubtitle = (msg: GroupMessage) => {
+    if (msg.senderId === currentUser.id) return null;
+    const username = msg.sender?.username
+      ?? groupDetails?.members.find((m) => m.id === msg.senderId)?.username;
+    const role = msg.sender?.role
+      ?? groupDetails?.members.find((m) => m.id === msg.senderId)?.role;
+    if (!username && !role) return null;
+    const parts = [];
+    if (username) parts.push(`@${username}`);
+    if (role) parts.push(getRoleLabel(role));
+    return parts.join(' · ');
   };
 
   const formatTime = (dateString: string) =>
@@ -450,11 +476,22 @@ export function GroupChatPanel({ currentUser, canManage }: GroupChatPanelProps) 
               ) : (
                 messages.map((msg) => {
                   const isOwn = msg.senderId === currentUser.id;
+                  const subtitle = senderSubtitle(msg);
                   return (
                     <div key={msg.id} className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
                       <div className={cn('max-w-[75%]', isOwn ? 'chat-bubble-own' : 'chat-bubble-other')}>
-                        {!isOwn && (
-                          <p className="mb-0.5 text-[10px] font-semibold text-slate-600">{memberName(msg.senderId)}</p>
+                        <p
+                          className={cn(
+                            'mb-0.5 text-[11px] font-semibold',
+                            isOwn ? 'text-blue-100' : 'text-slate-700'
+                          )}
+                        >
+                          {memberName(msg)}
+                        </p>
+                        {subtitle && (
+                          <p className={cn('mb-0.5 text-[10px]', isOwn ? 'text-blue-100/80' : 'text-slate-500')}>
+                            {subtitle}
+                          </p>
                         )}
                         <p className="m-0 text-sm">{msg.content}</p>
                         <p className="m-0 mt-0.5 text-right text-[10px] text-slate-500">{formatTime(msg.createdAt)}</p>

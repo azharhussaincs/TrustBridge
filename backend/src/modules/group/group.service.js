@@ -229,11 +229,25 @@ class GroupService {
   async getMessages(groupId, userId, limit = 50) {
     await this.ensureMember(groupId, userId);
 
-    return prisma.groupMessage.findMany({
+    const messages = await prisma.groupMessage.findMany({
       where: { groupId },
       orderBy: { createdAt: 'asc' },
       take: limit,
     });
+
+    if (!messages.length) return [];
+
+    const senderIds = [...new Set(messages.map((m) => m.senderId))];
+    const senders = await prisma.user.findMany({
+      where: { id: { in: senderIds } },
+      select: { id: true, name: true, username: true, role: true },
+    });
+    const senderById = Object.fromEntries(senders.map((s) => [s.id, s]));
+
+    return messages.map((message) => ({
+      ...message,
+      sender: senderById[message.senderId] || null,
+    }));
   }
 
   async createMessage(groupId, senderId, content, fileId = null) {
@@ -251,7 +265,7 @@ class GroupService {
     const [sender, group] = await Promise.all([
       prisma.user.findUnique({
         where: { id: senderId },
-        select: { id: true, name: true, username: true },
+        select: { id: true, name: true, username: true, role: true },
       }),
       prisma.chatGroup.findUnique({
         where: { id: groupId },
@@ -293,7 +307,7 @@ class GroupService {
     const [senders, groups] = await Promise.all([
       prisma.user.findMany({
         where: { id: { in: senderIds } },
-        select: { id: true, name: true, username: true },
+        select: { id: true, name: true, username: true, role: true },
       }),
       prisma.chatGroup.findMany({
         where: { id: { in: groupIds } },
