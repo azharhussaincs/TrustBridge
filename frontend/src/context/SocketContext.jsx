@@ -62,6 +62,7 @@ export function SocketProvider({ children }) {
   const inboxPollReadyRef = useRef(false);
   const groupInboxPollReadyRef = useRef(false);
   const activeDirectChatUserIdRef = useRef(null);
+  const socketRef = useRef(null);
 
   const setActiveDirectChatUserId = useCallback((userId) => {
     activeDirectChatUserIdRef.current = userId || null;
@@ -132,7 +133,7 @@ export function SocketProvider({ children }) {
       }));
     }
 
-    if (notify && groupInboxPollReadyRef.current && shouldNotifyGroupIncoming(message)) {
+    if (notify && shouldNotifyGroupIncoming(message)) {
       const senderName = message.sender?.name || 'Someone';
       const groupName = message.groupName || 'Group';
       notifyIncomingGroupMessage(message, senderName, groupName);
@@ -187,12 +188,25 @@ export function SocketProvider({ children }) {
     const user = readStoredUser() || {};
     if (!token || !user.id) return;
 
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('join-group-rooms');
+    }
+
     try {
       const recent = await fetchRecentGroupMessages(token, 40);
-      for (const message of recent) {
-        handleIncomingGroupMessage(message, { notify: true });
+
+      if (!groupInboxPollReadyRef.current) {
+        for (const message of recent) {
+          if (message?.id) seenGroupMessageIdsRef.current.add(message.id);
+        }
+        groupInboxPollReadyRef.current = true;
+        return;
       }
-      groupInboxPollReadyRef.current = true;
+
+      for (const message of recent) {
+        if (!message?.id || seenGroupMessageIdsRef.current.has(message.id)) continue;
+        handleIncomingGroupMessage(message, { notify: true, bumpUnread: true });
+      }
     } catch (error) {
       console.error('Failed to poll group inbox:', error);
     }
@@ -252,6 +266,7 @@ export function SocketProvider({ children }) {
       connectedAtRef.current = Date.now();
       setIsConnected(true);
       newSocket.emit('register-user', user.id);
+      newSocket.emit('join-group-rooms');
       syncUnreadFromApi();
       pollInboxAll();
       newSocket.emit('get-unread-count', user.id);
@@ -317,8 +332,10 @@ export function SocketProvider({ children }) {
     });
 
     setSocket(newSocket);
+    socketRef.current = newSocket;
 
     return () => {
+      socketRef.current = null;
       newSocket.disconnect();
     };
   }, [authTick, syncUnreadFromApi, pollInboxAll, handleIncomingMessage, handleIncomingGroupMessage]);
