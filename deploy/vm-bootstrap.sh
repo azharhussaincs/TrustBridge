@@ -9,21 +9,27 @@ APP_DIR="/opt/TrustBridge"
 VM_IP="${VM_IP:-192.168.18.141}"
 
 fix_dns() {
-  echo "==> Fixing DNS..."
+  echo "==> Setting static IP ${VM_IP} + DNS..."
   IFACE="$(ip route show default | awk '{print $5}' | head -1)"
   [[ -z "$IFACE" ]] && IFACE="$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | head -1)"
-  sudo tee /etc/netplan/99-opbridge-dns.yaml >/dev/null <<EOF
+  sudo rm -f /etc/netplan/99-opbridge-dns.yaml
+  sudo tee /etc/netplan/99-opbridge-static.yaml >/dev/null <<EOF
 network:
   version: 2
   ethernets:
     ${IFACE}:
-      dhcp4: true
+      dhcp4: false
+      addresses:
+        - ${VM_IP}/24
+      routes:
+        - to: default
+          via: 192.168.18.1
       nameservers:
         addresses:
           - 192.168.18.1
           - 8.8.8.8
 EOF
-  sudo chmod 600 /etc/netplan/99-opbridge-dns.yaml
+  sudo chmod 600 /etc/netplan/99-opbridge-static.yaml
   sudo netplan apply
   echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf >/dev/null
   sleep 2
