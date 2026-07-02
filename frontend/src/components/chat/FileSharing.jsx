@@ -22,11 +22,6 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
-      const oversizedFiles = files.filter(file => file.size > 50 * 1024 * 1024);
-      if (oversizedFiles.length > 0) {
-        setError(`Some files exceed 50MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
-        return;
-      }
       setSelectedFiles(prev => [...prev, ...files]);
       setError('');
     }
@@ -243,7 +238,7 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
             📎 Choose Files
           </label>
           <span className="text-xs text-slate-500">
-            (Any file type, max 50MB each)
+            (Any file type, no size limit)
           </span>
         </div>
 
@@ -308,7 +303,7 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
       </div>
       
       <p className="mt-2 text-[10px] text-slate-400">
-        🔐 AES-GCM encrypted · Any file type · Multiple selection
+        🔐 AES-GCM encrypted · Any file type · Any size · Multiple selection
       </p>
     </div>
   );

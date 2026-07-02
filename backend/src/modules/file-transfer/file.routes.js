@@ -4,15 +4,24 @@ const multer = require('multer');
 const fileController = require('./file.controller');
 const authMiddleware = require('../auth/auth.middleware');
 
-// Configure multer for memory storage - No size limit, all file types
+// Configure multer for memory storage — all file types; optional cap via MAX_FILE_SIZE env only
 const storage = multer.memoryStorage();
+const parsedMaxFileSize = parseInt(process.env.MAX_FILE_SIZE, 10);
+const maxFileSize =
+  Number.isFinite(parsedMaxFileSize) && parsedMaxFileSize > 0
+    ? parsedMaxFileSize
+    : null;
+
 const upload = multer({
   storage,
-  // No file filter - accept all file types
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB default, can be changed
-  }
+  ...(maxFileSize ? { limits: { fileSize: maxFileSize } } : {}),
 });
+
+function formatMaxFileSize(bytes) {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(0)} GB`;
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(0)} MB`;
+  return `${bytes} bytes`;
+}
 
 // All routes require authentication
 router.use(authMiddleware.authenticate);
@@ -27,7 +36,9 @@ router.post('/upload', (req, res, next) => {
       if (err.code === 'FILE_TOO_LARGE') {
         return res.status(400).json({
           success: false,
-          message: 'File too large. Maximum size is 50MB.'
+          message: maxFileSize
+            ? `File too large. Maximum size is ${formatMaxFileSize(maxFileSize)}.`
+            : 'File too large.',
         });
       }
       return res.status(400).json({
