@@ -5,12 +5,17 @@ const multer = require('multer');
 const fileController = require('./file.controller');
 const authMiddleware = require('../auth/auth.middleware');
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || path.join(__dirname, '../../../uploads'));
 const TEMP_DIR = path.join(UPLOAD_DIR, '.tmp');
 
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
+
+ensureDir(UPLOAD_DIR);
+ensureDir(TEMP_DIR);
 
 // Disk storage — streams to disk; no file type or size limits
 const storage = multer.diskStorage({
@@ -42,9 +47,10 @@ router.post('/upload', (req, res, next) => {
       });
     }
     if (err) {
+      console.error('Multer upload error:', err);
       return res.status(500).json({
         success: false,
-        message: err.message,
+        message: err.message || 'Upload failed',
       });
     }
     next();

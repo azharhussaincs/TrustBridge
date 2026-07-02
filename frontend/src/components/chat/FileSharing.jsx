@@ -99,9 +99,14 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
             } else {
               try {
                 const errorData = JSON.parse(xhr.responseText);
-                reject(new Error(errorData.message || 'Upload failed'));
+                reject(new Error(errorData.message || `Upload failed with status ${xhr.status}`));
               } catch (e) {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
+                const snippet = xhr.responseText?.slice(0, 200);
+                reject(new Error(
+                  snippet
+                    ? `Upload failed (${xhr.status}): ${snippet}`
+                    : `Upload failed with status ${xhr.status}`
+                ));
               }
             }
           };

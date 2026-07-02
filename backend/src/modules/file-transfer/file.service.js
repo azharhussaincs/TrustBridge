@@ -4,7 +4,7 @@ const { createReadStream } = require('fs');
 const encryptionService = require('../crypto/encryption');
 
 const prisma = require('../../config/database');
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || path.join(__dirname, '../../../uploads'));
 
 const FILE_SHARING_RULES = {
   'ADMIN': {

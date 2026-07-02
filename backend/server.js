@@ -263,6 +263,11 @@ io.on('connection', async (socket) => {
 
 app.set('io', io);
 
+// Allow very large file uploads/downloads (no request timeout)
+server.requestTimeout = 0;
+server.headersTimeout = 0;
+server.keepAliveTimeout = 0;
+
 server.listen(PORT, HOST, () => {
   console.log('='.repeat(50));
   console.log('🚀 TrustBridge Server Started');
