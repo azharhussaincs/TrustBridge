@@ -44,6 +44,7 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
     const totalFiles = selectedFiles.length;
     let uploadedCount = 0;
     let failedCount = 0;
+    let lastError = '';
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
@@ -137,13 +138,16 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
           toast.success(`📎 File "${fileName}" sent!`);
         } else {
           failedCount++;
-          setError(`Failed to upload: ${file.name}`);
+          const reason = response.message || 'Upload failed';
+          lastError = `${file.name}: ${reason}`;
+          setError(lastError);
         }
 
       } catch (err) {
         console.error('Upload error for file:', file.name, err);
         failedCount++;
-        setError(`Failed to upload: ${file.name}`);
+        lastError = err instanceof Error ? err.message : `Failed to upload: ${file.name}`;
+        setError(lastError);
         if (onFileMessage) {
           onFileMessage({
             id: tempId,
@@ -172,7 +176,7 @@ export default function FileSharing({ receiverId, currentUser, onFileMessage }) 
       setSuccess(`✅ ${uploadedCount} files sent, ${failedCount} failed`);
       setSelectedFiles(prev => prev.slice(uploadedCount));
     } else {
-      setError('All files failed to upload');
+      setError(lastError || 'All files failed to upload');
     }
   };
 

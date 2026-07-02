@@ -49,6 +49,11 @@ EOF
   npm run seed || true
 fi
 
+# Remove legacy upload size cap from production env
+if [[ -f .env ]]; then
+  sed -i '/^MAX_FILE_SIZE=/d' .env
+fi
+
 echo "==> Frontend..."
 cd "${APP_DIR}/frontend"
 npm ci

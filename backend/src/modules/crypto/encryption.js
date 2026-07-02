@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const { createReadStream, createWriteStream } = require('fs');
+const { pipeline } = require('stream/promises');
 
 class EncryptionService {
   constructor() {
@@ -153,6 +155,27 @@ class EncryptionService {
   }
 
   /**
+   * Encrypt a file on disk using streaming (no full-file RAM buffer).
+   * @param {string} sourcePath - Path to plaintext file
+   * @param {string} destPath - Path for encrypted output
+   * @param {Buffer} key - Encryption key
+   * @returns {Promise<{ iv: Buffer, authTag: Buffer }>}
+   */
+  async encryptFileFromPath(sourcePath, destPath, key = null) {
+    const encryptionKey = key || this.getKey();
+    const iv = this.generateIV();
+    const cipher = crypto.createCipheriv(this.algorithm, encryptionKey, iv);
+
+    await pipeline(
+      createReadStream(sourcePath),
+      cipher,
+      createWriteStream(destPath)
+    );
+
+    return { iv, authTag: cipher.getAuthTag() };
+  }
+
+  /**
    * Decrypt a file
    * @param {Buffer} encryptedData - Encrypted data
    * @param {Buffer} iv - Initialization Vector
@@ -163,6 +186,26 @@ class EncryptionService {
   decryptFile(encryptedData, iv, authTag, key = null) {
     const encryptionKey = key || this.getKey();
     return this.decrypt(encryptedData, encryptionKey, iv, authTag);
+  }
+
+  /**
+   * Stream-decrypt a file to an HTTP response (or any writable stream).
+   * @param {string} encryptedPath - Path to encrypted file
+   * @param {Buffer} iv
+   * @param {Buffer} authTag
+   * @param {import('stream').Writable} outputStream
+   * @param {Buffer} key
+   */
+  async decryptFileToStream(encryptedPath, iv, authTag, outputStream, key = null) {
+    const encryptionKey = key || this.getKey();
+    const decipher = crypto.createDecipheriv(this.algorithm, encryptionKey, iv);
+    decipher.setAuthTag(authTag);
+
+    await pipeline(
+      createReadStream(encryptedPath),
+      decipher,
+      outputStream
+    );
   }
 
   /**

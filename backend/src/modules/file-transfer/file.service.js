@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { createReadStream } = require('fs');
 const encryptionService = require('../crypto/encryption');
 
 const prisma = require('../../config/database');
@@ -36,6 +37,7 @@ class FileService {
   async ensureUploadDir() {
     try {
       await fs.mkdir(UPLOAD_DIR, { recursive: true });
+      await fs.mkdir(path.join(UPLOAD_DIR, '.tmp'), { recursive: true });
     } catch (error) {
       console.error('Error creating upload directory:', error);
     }
@@ -68,30 +70,32 @@ class FileService {
   }
 
   async saveFile(fileData, senderId, receiverId, isEncrypted = true) {
+    const { filename, buffer, tempPath, mimeType, size } = fileData;
+    const uniqueFilename = `${Date.now()}-${filename}`;
+    const filePath = path.join(UPLOAD_DIR, uniqueFilename);
+
     try {
-      const { filename, buffer, mimeType, size } = fileData;
-      
-      const uniqueFilename = `${Date.now()}-${filename}`;
-      const filePath = path.join(UPLOAD_DIR, uniqueFilename);
-      
-      let savedBuffer = buffer;
-      let iv = null;
-      let authTag = null;
-      
-      if (isEncrypted) {
-        const result = encryptionService.encryptFile(buffer);
-        savedBuffer = result.encryptedData;
-        iv = result.iv;
-        authTag = result.authTag;
+      if (tempPath) {
+        if (isEncrypted) {
+          const result = await encryptionService.encryptFileFromPath(tempPath, filePath);
+          await fs.writeFile(`${filePath}.iv`, result.iv);
+          await fs.writeFile(`${filePath}.tag`, result.authTag);
+        } else {
+          await fs.copyFile(tempPath, filePath);
+        }
+      } else if (buffer) {
+        let savedBuffer = buffer;
+        if (isEncrypted) {
+          const result = encryptionService.encryptFile(buffer);
+          savedBuffer = result.encryptedData;
+          await fs.writeFile(`${filePath}.iv`, result.iv);
+          await fs.writeFile(`${filePath}.tag`, result.authTag);
+        }
+        await fs.writeFile(filePath, savedBuffer);
+      } else {
+        throw new Error('No file data provided');
       }
-      
-      await fs.writeFile(filePath, savedBuffer);
-      
-      if (iv && authTag) {
-        await fs.writeFile(`${filePath}.iv`, iv);
-        await fs.writeFile(`${filePath}.tag`, authTag);
-      }
-      
+
       const file = await prisma.file.create({
         data: {
           filename,
@@ -103,12 +107,54 @@ class FileService {
           receiverId
         }
       });
-      
+
       return file;
     } catch (error) {
       console.error('Error saving file:', error);
+      await fs.unlink(filePath).catch(() => {});
+      await fs.unlink(`${filePath}.iv`).catch(() => {});
+      await fs.unlink(`${filePath}.tag`).catch(() => {});
       throw error;
+    } finally {
+      if (tempPath) {
+        await fs.unlink(tempPath).catch(() => {});
+      }
     }
+  }
+
+  async streamFileToResponse(fileId, userId, res) {
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      throw new Error('File not found');
+    }
+
+    if (file.senderId !== userId && file.receiverId !== userId) {
+      throw new Error('Unauthorized access');
+    }
+
+    res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    if (file.size) {
+      res.setHeader('Content-Length', file.size);
+    }
+
+    if (file.isEncrypted) {
+      const iv = await fs.readFile(`${file.path}.iv`);
+      const authTag = await fs.readFile(`${file.path}.tag`);
+      await encryptionService.decryptFileToStream(file.path, iv, authTag, res);
+      return;
+    }
+
+    await new Promise((resolve, reject) => {
+      const stream = createReadStream(file.path);
+      stream.on('error', reject);
+      res.on('finish', resolve);
+      res.on('error', reject);
+      stream.pipe(res);
+    });
   }
 
   async getFile(fileId, userId) {

@@ -51,7 +51,7 @@ class FileController {
       const file = await fileService.saveFile(
         {
           filename: req.file.originalname,
-          buffer: req.file.buffer,
+          tempPath: req.file.path,
           mimeType: req.file.mimetype,
           size: req.file.size
         },
@@ -78,20 +78,16 @@ class FileController {
     try {
       const { fileId } = req.params;
       const userId = req.user.id;
-      
-      const result = await fileService.getFile(fileId, userId);
-      
-      // Set headers for download
-      res.setHeader('Content-Type', result.file.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${result.file.filename}"`);
-      res.setHeader('Content-Length', result.file.size);
-      res.send(result.data);
+
+      await fileService.streamFileToResponse(fileId, userId, res);
     } catch (error) {
       console.error('Download error:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
+      if (!res.headersSent) {
+        res.status(400).json({
+          success: false,
+          message: error.message
+        });
+      }
     }
   }
 
